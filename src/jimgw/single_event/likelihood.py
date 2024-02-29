@@ -164,7 +164,6 @@ class HeterodynedTransientLikelihoodFD(TransientLikelihoodFD):
         prior: Prior,
         bounds: Float[Array, " n_dim 2"],
         n_bins: int = 100,
-        epsilon: float = 0.01,
         trigger_time: float = 0,
         duration: float = 4,
         post_trigger_duration: float = 2,
@@ -203,9 +202,7 @@ class HeterodynedTransientLikelihoodFD(TransientLikelihoodFD):
         # Get the grid of the relative binning scheme (contains the final endpoint)
         # and the center points
         freq_grid, self.freq_grid_center = self.make_binning_scheme(
-            np.array(frequency_original),
-            n_bins,
-            epsilon,
+            np.array(frequency_original), n_bins
         )
         self.freq_grid_low = freq_grid[:-1]
 
@@ -411,14 +408,14 @@ class HeterodynedTransientLikelihoodFD(TransientLikelihoodFD):
             Maximum phase difference between the frequencies in the array.
         """
 
-        gamma = np.arange(-5, 10, 1) / 3.0
+        gamma = np.arange(-5, 6, 1) / 3.0
         f = np.repeat(f[:, None], len(gamma), axis=1)
         f_star = np.repeat(f_low, len(gamma))
         f_star[gamma >= 0] = f_high
         return 2 * np.pi * chi * np.sum((f / f_star) ** gamma * np.sign(gamma), axis=1)
 
     def make_binning_scheme(
-        self, freqs: npt.NDArray[np.float_], n_bins: int, epsilon: float, chi: float = 1
+        self, freqs: npt.NDArray[np.float_], n_bins: int, chi: float = 1
     ) -> tuple[Float[Array, " n_bins+1"], Float[Array, " n_bins"]]:
         """
         Make a binning scheme based on the maximum phase difference between the
@@ -430,8 +427,6 @@ class HeterodynedTransientLikelihoodFD(TransientLikelihoodFD):
             Array of frequencies to be binned.
         n_bins: int
             Number of bins to be used.
-        epsilon: float
-            Maximum allowed phase deviation in rad
         chi: float = 1
             The chi parameter used in the phase difference calculation.
 
@@ -444,11 +439,6 @@ class HeterodynedTransientLikelihoodFD(TransientLikelihoodFD):
         """
 
         phase_diff_array = self.max_phase_diff(freqs, freqs[0], freqs[-1], chi=chi)
-        if epsilon:
-            phase_diff_from_start = phase_diff_array - phase_diff_array[0]
-            n_bins = int(phase_diff_from_start[-1] / epsilon)
-            print(f"Using {n_bins}bins for relative binning")
-
         bin_f = interp1d(phase_diff_array, freqs)
         f_bins = np.array([])
         for i in np.linspace(phase_diff_array[0], phase_diff_array[-1], n_bins + 1):
