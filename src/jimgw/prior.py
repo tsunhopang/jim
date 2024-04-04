@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 from flowMC.nfmodel.base import Distribution
-from jaxtyping import Array, Float, Int, PRNGKeyArray, jaxtyped
+from jaxtyping import Array, Float, Int, PRNGKeyArray, Bool, jaxtyped
 from typing import Callable, Union
 from dataclasses import field
 
@@ -143,6 +143,71 @@ class Uniform(Prior):
             jnp.zeros_like(variable),
         )
         return output + jnp.log(1.0 / (self.xmax - self.xmin))
+
+
+@jaxtyped
+class OrderedUniform(Prior):
+    xmin: Float = 0.0
+    xmax: Float = 1.0
+    descending: Bool = True
+
+    def __repr__(self):
+        return f"OrderUniform(xmin={self.xmin}, xmax={self.xmax}, n_dim={self.n_dim})"
+
+    def __init__(
+        self,
+        xmin: Float,
+        xmax: Float,
+        descending: Bool,
+        naming: list[str],
+        transforms: dict[str, tuple[str, Callable]] = {},
+        **kwargs,
+    ):
+        super().__init__(naming, transforms)
+        assert self.n_dim > 1, "OrderUniform needs to be at least 2D distribution"
+        self.xmax = xmax
+        self.xmin = xmin
+        self.descending = descending
+
+    def sample(
+        self, rng_key: PRNGKeyArray, n_samples: int
+    ) -> dict[str, Float[Array, " n_samples"]]:
+        """
+        Sample from an ordered uniform distribution.
+
+        Parameters
+        ----------
+        rng_key : PRNGKeyArray
+            A random key to use for sampling.
+        n_samples : int
+            The number of samples to draw.
+
+        Returns
+        -------
+        samples : dict
+            Samples from the distribution. The keys are the names of the parameters.
+
+        """
+        samples = jax.random.uniform(
+            rng_key, (self.n_dim, n_samples), minval=self.xmin, maxval=self.xmax
+        )
+        samples = jnp.sort(samples, axis=0, descending=self.descending)
+        return self.add_name(samples)
+
+    def log_prob(self, x: dict[str, Array]) -> Float:
+        variable = jnp.array([x.get(name) for name in self.naming])
+        sorted_variable = jnp.sort(variable, axis=0, descending=self.descending)
+
+        in_range_condition = (variable >= self.xmax) * (variable <= self.xmin)
+        sorted_condition = jnp.all(variable == sorted_variable, axis=0)
+        sorted_condition *= jnp.ones(variable.shape)
+
+        output = jnp.where(
+            in_range_condition * sorted_condition,
+            jnp.zeros_like(variable),
+            jnp.zeros_like(variable) - jnp.inf,
+        )
+        return output + self.n_dim * jnp.log(1.0 / (self.xmax - self.xmin))
 
 
 @jaxtyped
