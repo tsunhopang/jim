@@ -22,6 +22,7 @@ class Jim(object):
     def __init__(self, likelihood: LikelihoodBase, prior: Prior, **kwargs):
         self.Likelihood = likelihood
         self.Prior = prior
+        self.Transform = kwargs.get("transform", lambda x: x)
 
         seed = kwargs.get("seed", 0)
         n_chains = kwargs.get("n_chains", 20)
@@ -68,9 +69,11 @@ class Jim(object):
     def posterior(self, params: Float[Array, " n_dim"], data: dict):
         prior_params = self.Prior.add_name(params.T)
         prior = self.Prior.log_prob(prior_params)
-        return (
-            self.Likelihood.evaluate(self.Prior.transform(prior_params), data) + prior
-        )
+
+        prior_params = self.Prior.transform(prior_params)
+        prior_params = self.Transform(prior_params)
+
+        return self.Likelihood.evaluate(prior_params, data) + prior
 
     def sample(self, key: PRNGKeyArray, initial_guess: Array = jnp.array([])):
         if initial_guess.size == 0:
