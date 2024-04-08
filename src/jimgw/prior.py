@@ -1,9 +1,16 @@
 import jax
+from jax.lax import while_loop
 import jax.numpy as jnp
 from flowMC.nfmodel.base import Distribution
 from jaxtyping import Array, Float, Int, PRNGKeyArray, Bool, jaxtyped
 from typing import Callable, Union
 from dataclasses import field
+from jimgw.single_event.utils import (
+    EOS_check,
+    detector_frame_Mc_q_to_source_frame_m1_m2,
+)
+
+from joseTOV.sampling import MetaModel_with_CSE_parameters_to_family
 
 
 class Prior(Distribution):
@@ -650,3 +657,152 @@ class Composite(Prior):
         for prior in self.priors:
             output += prior.log_prob(x)
         return output
+
+
+class MetaModel_CSE_EOS(Prior):
+
+    sample_vec: Callable
+    log_prob_vec: Callable
+    priors: list[Prior] = field(default_factory=list)
+    naming: list[str] = field(default_factory=list)
+    sym_ordering: list[str] = field(default_factory=list)
+    sat_ordering: list[str] = field(default_factory=list)
+    n_cs_node: int = 5
+    Hubble_constant: Float = 67.4
+    c: Float = 299792458.0
+
+    def __init__(
+        self,
+        priors: list[Prior],
+        sym_ordering: list[str] = ["E_sym", "L_sym", "K_sym", "Q_sym", "Z_sym"],
+        sat_ordering: list[str] = ["E_sat", "K_sat", "Q_sat", "Z_sat"],
+        n_cs_node: int = 5,
+        Hubble_constant: Float = 67.4,  # km s^-1 Mpc^-1
+        c: Float = 299792458.0,
+    ):
+
+        self.priors = Composite(priors)
+        self.sym_ordering = sym_ordering
+        self.sat_ordering = sat_ordering
+        self.n_cs_node = n_cs_node
+        self.Hubble_constant = Hubble_constant
+        self.c = c
+
+        self.sample_vec = jax.vmap(self.sample_single, in_axes=(0,))
+        self.log_prob_vec = jax.vmap(self.log_prob_single, in_axes=(1,))
+
+        naming = []
+        for prior in priors:
+            naming.extend(prior.naming)
+
+        super().__init__(naming, {})
+
+    def __repr__(self):
+        return f"MetaModel_CSE_EOS(priors={self.priors})"
+
+    def sample(self, rng_key: PRNGKeyArray, n_samples: int):
+        key_array = jax.random.split(rng_key, n_samples)
+        samples = self.sample_vec(key_array)
+        samples = jnp.swapaxes(samples, 0, 1)
+        return self.add_name(samples)
+
+    def log_prob(self, x: dict[str, Array]) -> Float:
+        x_unnamed = jnp.array([x[name] for name in self.naming])
+        return self.log_prob_vec(x_unnamed)
+
+    def parameters_to_EOS(self, x: dict[str, Array]) -> tuple[Array, Array, Array]:
+        # put MM parameters in list
+        MM_sym_params = []
+        MM_sat_params = []
+
+        for key in self.sym_ordering:
+            value = x.get(key, jnp.array([0.0])).at[0].get()
+            MM_sym_params.append(value)
+
+        for key in self.sat_ordering:
+            value = x.get(key, jnp.array([0.0])).at[0].get()
+            MM_sat_params.append(value)
+
+        # put CSE parameters in list
+        CSE_cs2_nodes = []
+        CSE_den_nodes = []
+        for i in range(1, self.n_cs_node + 1):
+            cs2_value = x.get(f"cs2_nodes_{i}").at[0].get()
+            den_value = x.get(f"den_nodes_{i}").at[0].get()
+            CSE_cs2_nodes.append(cs2_value)
+            CSE_den_nodes.append(den_value)
+
+        # get the macro-EOS
+        _, masses, radii, lambdas = MetaModel_with_CSE_parameters_to_family(
+            jnp.array(MM_sat_params),
+            jnp.array(MM_sym_params),
+            1.5 * 0.16,
+            jnp.array(CSE_den_nodes),
+            jnp.array(CSE_cs2_nodes),
+            0.16,
+            12 * 0.16,
+        )
+
+        return masses, radii, lambdas
+
+    def sample_single(self, rng_key: PRNGKeyArray) -> Array:
+
+        def body(rng_key: PRNGKeyArray) -> PRNGKeyArray:
+            # spliting to key to create new key
+            # taking the second one to avoid taking the
+            # same key as in flowMC
+            _, rng_key = jax.random.split(rng_key, 2)
+            return rng_key
+
+        def cond(rng_key: PRNGKeyArray) -> Bool:
+            # get a trial sample
+            parameters = self.priors.sample(rng_key, 1)
+            # convert the masses into source frame masses
+            # assume the prior is on chirp mass and mass ratio for now
+            m1_source, m2_source = detector_frame_Mc_q_to_source_frame_m1_m2(
+                parameters["M_c"],
+                parameters["q"],
+                parameters["d_L"],
+                self.Hubble_constant,
+                self.c,
+            )
+
+            masses, radii, lambdas = self.parameters_to_EOS(parameters)
+
+            out = not EOS_check(m1_source, m2_source, masses, radii, lambdas)
+
+            return jnp.all(parameters["K_sat"] >= 230.0)
+
+        # find the key which give a valid EOS and masses
+        valid_key = while_loop(
+            cond_fun=cond,
+            body_fun=body,
+            init_val=rng_key,
+        )
+
+        # since the sample is expected to return ndarray rather than dict
+        # we need to extract the values from these dictionaries
+        valid_sample = self.priors.sample(valid_key, 1)
+
+        return jnp.array([valid_sample[name] for name in self.naming])
+
+    def log_prob_single(self, x: Array) -> Float:
+        x_named = self.add_name(x)
+        masses, radii, lambdas = self.parameters_to_EOS(x_named)
+        m1_source, m2_source = detector_frame_Mc_q_to_source_frame_m1_m2(
+            x_named["M_c"], x_named["q"], x_named["d_L"], self.Hubble_constant, self.c
+        )
+
+        output = jnp.where(
+            EOS_check(
+                m1_source,
+                m2_source,
+                masses,
+                radii,
+                lambdas,
+            ),
+            0.0,
+            -jnp.inf,
+        )
+
+        return output + self.priors.log_prob(x)

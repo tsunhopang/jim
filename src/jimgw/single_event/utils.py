@@ -161,3 +161,48 @@ def log_i0(x):
         The natural logarithm of the bessel function
     """
     return jnp.log(i0e(x)) + x
+
+
+def EOS_check(
+    mass_1,  # source frame primary component mass
+    mass_2,  # source frame secondary component mass
+    masses,  # mass array output from TOV solver
+    radii,  # radius array output from TOV solver
+    lambdas,  # lambda array output from TOV solver
+):
+    """
+    This function check is the provided EOS is viable with the following criteria
+    1. Both mass_1 and mass_2 are within the EOS's mass range
+    2. There are at least 4 points on the M-R-Lambda curve
+    3. All radii and Lambdas are positive
+
+    This function is expecting a single evaluation,
+    therefore, not vectorized
+    """
+
+    # mass check
+    TOV_mass = jnp.amax(masses)
+    min_mass = jnp.amin(masses)
+    mass_check = (TOV_mass > mass_1) * (min_mass < mass_2)
+
+    # EOS quality check
+    EOS_quality = masses.shape[0] >= 4  # just a random number chosen for now
+
+    # positive radii and lambdas check
+    positive_R_Lambda = jnp.all(radii > 0.0) * jnp.all(lambdas > 0.0)
+
+    return (mass_check * EOS_quality * positive_R_Lambda,)
+
+
+def detector_frame_Mc_q_to_source_frame_m1_m2(Mc, q, d_L, H0, c):
+
+    # calculate source frame chirp mass
+    z = d_L * H0 * 1e3 / c
+    Mc_source = Mc / (1.0 + z)
+
+    # get source frame mass_1 and mass_2
+    M_source = Mc_source * (1.0 + q) ** 1.2 / q**0.6
+    m1_source = M_source / (1.0 + q)
+    m2_source = M_source * q / (1.0 + q)
+
+    return m1_source, m2_source
