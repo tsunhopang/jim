@@ -190,8 +190,13 @@ def EOS_check(
 
     # positive radii and lambdas check
     positive_R_Lambda = jnp.all(radii > 0.0) * jnp.all(lambdas > 0.0)
+    out = jnp.where(
+        mass_check * EOS_quality * positive_R_Lambda,
+        True,
+        False,
+    )
 
-    return (mass_check * EOS_quality * positive_R_Lambda,)
+    return out
 
 
 def detector_frame_Mc_q_to_source_frame_m1_m2(Mc, q, d_L, H0, c):

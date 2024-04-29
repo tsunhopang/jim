@@ -1,5 +1,5 @@
 import jax
-from jax.lax import while_loop
+from jax.lax import while_loop, cond
 import jax.numpy as jnp
 from flowMC.nfmodel.base import Distribution
 from jaxtyping import Array, Float, Int, PRNGKeyArray, Bool, jaxtyped
@@ -11,6 +11,10 @@ from jimgw.single_event.utils import (
 )
 
 from joseTOV.sampling import MetaModel_with_CSE_parameters_to_family
+from joseTOV.eos import (
+    MetaModel_with_CSE_EOS_model,
+    construct_family
+)
 
 
 class Prior(Distribution):
@@ -710,7 +714,15 @@ class MetaModel_CSE_EOS(Prior):
         x_unnamed = jnp.array([x[name] for name in self.naming])
         return self.log_prob_vec(x_unnamed)
 
-    def parameters_to_EOS(self, x: dict[str, Array]) -> tuple[Array, Array, Array]:
+    def EOS_to_family(self, eos_tuple: tuple[Array, Array, Array, Array, Array]) -> tuple[Array, Array, Array]:
+
+        _, masses, radii, lambdas = construct_family(
+            eos_tuple
+        )
+
+        return masses, radii, lambdas
+
+    def parameters_to_EOS(self, x: dict[str, Array]) -> tuple[Array, Array, Array, Array, Array]:
         # put MM parameters in list
         MM_sym_params = []
         MM_sat_params = []
@@ -733,7 +745,7 @@ class MetaModel_CSE_EOS(Prior):
             CSE_den_nodes.append(den_value)
 
         # get the macro-EOS
-        _, masses, radii, lambdas = MetaModel_with_CSE_parameters_to_family(
+        eos_model = MetaModel_with_CSE_EOS_model(
             jnp.array(MM_sat_params),
             jnp.array(MM_sym_params),
             1.5 * 0.16,
@@ -743,7 +755,15 @@ class MetaModel_CSE_EOS(Prior):
             12 * 0.16,
         )
 
-        return masses, radii, lambdas
+        eos_tuple = (
+            eos_model.n,
+            eos_model.p,
+            eos_model.h,
+            eos_model.e,
+            eos_model.dloge_dlogp,
+        )
+
+        return eos_tuple
 
     def sample_single(self, rng_key: PRNGKeyArray) -> Array:
 
@@ -754,7 +774,7 @@ class MetaModel_CSE_EOS(Prior):
             _, rng_key = jax.random.split(rng_key, 2)
             return rng_key
 
-        def cond(rng_key: PRNGKeyArray) -> Bool:
+        def condition(rng_key: PRNGKeyArray) -> Bool:
             # get a trial sample
             parameters = self.priors.sample(rng_key, 1)
             # convert the masses into source frame masses
@@ -767,15 +787,28 @@ class MetaModel_CSE_EOS(Prior):
                 self.c,
             )
 
-            masses, radii, lambdas = self.parameters_to_EOS(parameters)
+            eos_tuple = self.parameters_to_EOS(parameters)
 
-            out = not EOS_check(m1_source, m2_source, masses, radii, lambdas)
+            cs2 = jnp.diff(eos_tuple[1]) / jnp.diff(eos_tuple[3])
+            cs2_check = jnp.all((cs2 > 0.) * (cs2 <= 1.))
+            h_check = jnp.all(jnp.diff(eos_tuple[2]))
 
-            return jnp.all(parameters["K_sat"] >= 230.0)
+            masses, radii, lambdas = cond(
+                pred=cs2_check * h_check,
+                true_fun=self.EOS_to_family,
+                false_fun=lambda x: (
+                    jnp.zeros(50), jnp.zeros(50), jnp.zeros(50)
+                ),
+                operand=eos_tuple
+            )
+
+            out = EOS_check(m1_source, m2_source, masses, radii, lambdas)
+
+            return jnp.all(jnp.logical_not(out))
 
         # find the key which give a valid EOS and masses
         valid_key = while_loop(
-            cond_fun=cond,
+            cond_fun=condition,
             body_fun=body,
             init_val=rng_key,
         )
