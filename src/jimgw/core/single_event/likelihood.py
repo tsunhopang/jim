@@ -1011,7 +1011,7 @@ class HeterodynedPhaseMarginalizedLikelihoodFD(HeterodynedTransientLikelihoodFD)
         return log_likelihood
 
 
-class GridPhaseMarginalizedLikelihoodFD(BaseTransientLikelihoodFD):
+class GridPhaseMarginalizedLikelihoodFD(TransientLikelihoodFD):
     """Grid phase-marginalized likelihood using (2,2) mode approximation.
 
     This class performs phase marginalization by evaluating the likelihood on a grid
@@ -1029,7 +1029,7 @@ class GridPhaseMarginalizedLikelihoodFD(BaseTransientLikelihoodFD):
         detectors: List of detector objects.
         waveform: Waveform model to evaluate.
         n_phase_points: Number of phase grid points (default 1001).
-        **kwargs: Additional arguments passed to BaseTransientLikelihoodFD.
+        **kwargs: Additional arguments passed to TransientLikelihoodFD.
 
     Example:
         >>> likelihood = GridPhaseMarginalizedLikelihoodFD(

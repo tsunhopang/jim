@@ -353,7 +353,7 @@ class Jim:
         arr = jnp.array([initial[name] for name in self.parameter_names]).T
         if not jnp.all(jnp.isfinite(arr)):
             raise ValueError(
-                f"Initial positions contain non-finite values (NaN or inf) after {max_attempts} attempts. "
+                "Initial positions contain non-finite values (NaN or inf). "
                 "Check your priors and transforms for validity."
             )
         return arr

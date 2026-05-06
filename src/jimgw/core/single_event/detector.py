@@ -665,6 +665,7 @@ class GroundBased2G(Detector):
                     "No rng_key provided for noise simulation. Using time-based key with seed=%d.",
                     seed,
                 )
+            noise = self.psd.simulate_data(rng_key)
             strain_data += jnp.where(self.frequency_mask, noise, 0.0 + 0.0j)
 
         self.set_data(
