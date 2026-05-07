@@ -125,7 +125,7 @@ waveform = IMRPhenomXAS_NRTidalv3(f_ref=20.0)
 
 # --- Prior ---
 
-M_c_min, M_c_max = 1.18, 1.21
+M_c_min, M_c_max = 1.197, 1.198
 q_min, q_max = 0.125, 1.0
 d_L_min, d_L_max = 1.0, 100.0
 
@@ -147,9 +147,7 @@ prior = CombinePrior(
     ]
 )
 
-# --- Transforms (FlowMC) ---
-# FlowMC works in the original parameter space; only reparametrize sky and time
-# to improve sampler efficiency.
+# --- Transforms ---
 
 sample_transforms = [
     GeocentricArrivalTimeToDetectorArrivalTimeTransform(trigger_time=gps, ifo=ifos[0]),
@@ -169,113 +167,113 @@ likelihood_transforms = [
 #   CosinePrior [-π/2, π/2] → SineTransform   → BoundToBound([-1, 1] → [0, 1])
 #   PowerLawPrior (α=2)     → reverse_bijective_transform(PowerLawTransform)
 
-# sample_transforms_nsaw = [
-#     # Chirp mass
-#     BoundToBound(
-#         name_mapping=(["M_c"], ["M_c_unit"]),
-#         original_lower_bound=M_c_min,
-#         original_upper_bound=M_c_max,
-#         target_lower_bound=0.0,
-#         target_upper_bound=1.0,
-#     ),
-#     # Mass ratio
-#     BoundToBound(
-#         name_mapping=(["q"], ["q_unit"]),
-#         original_lower_bound=q_min,
-#         original_upper_bound=q_max,
-#         target_lower_bound=0.0,
-#         target_upper_bound=1.0,
-#     ),
-#     # Aligned spins
-#     BoundToBound(
-#         name_mapping=(["s1_z"], ["s1_z_unit"]),
-#         original_lower_bound=-0.05,
-#         original_upper_bound=0.05,
-#         target_lower_bound=0.0,
-#         target_upper_bound=1.0,
-#     ),
-#     BoundToBound(
-#         name_mapping=(["s2_z"], ["s2_z_unit"]),
-#         original_lower_bound=-0.05,
-#         original_upper_bound=0.05,
-#         target_lower_bound=0.0,
-#         target_upper_bound=1.0,
-#     ),
-#     # Inclination (SinePrior [0, π] → cosine ∈ [-1, 1] → [0, 1])
-#     CosineTransform(name_mapping=(["iota"], ["cos_iota"])),
-#     BoundToBound(
-#         name_mapping=(["cos_iota"], ["cos_iota_unit"]),
-#         original_lower_bound=-1.0,
-#         original_upper_bound=1.0,
-#         target_lower_bound=0.0,
-#         target_upper_bound=1.0,
-#     ),
-#     # Luminosity distance (PowerLawPrior α=2 → unit cube)
-#     reverse_bijective_transform(
-#         PowerLawTransform(
-#             name_mapping=(["d_L_unit"], ["d_L"]),
-#             xmin=d_L_min,
-#             xmax=d_L_max,
-#             alpha=2.0,
-#         )
-#     ),
-#     # Coalescence time
-#     BoundToBound(
-#         name_mapping=(["t_c"], ["t_c_unit"]),
-#         original_lower_bound=-0.1,
-#         original_upper_bound=0.1,
-#         target_lower_bound=0.0,
-#         target_upper_bound=1.0,
-#     ),
-#     # Coalescence phase (periodic)
-#     BoundToBound(
-#         name_mapping=(["phase_c"], ["phase_c_unit"]),
-#         original_lower_bound=0.0,
-#         original_upper_bound=2 * jnp.pi,
-#         target_lower_bound=0.0,
-#         target_upper_bound=1.0,
-#     ),
-#     # Polarization angle (periodic)
-#     BoundToBound(
-#         name_mapping=(["psi"], ["psi_unit"]),
-#         original_lower_bound=0.0,
-#         original_upper_bound=jnp.pi,
-#         target_lower_bound=0.0,
-#         target_upper_bound=1.0,
-#     ),
-#     # Right ascension (periodic)
-#     BoundToBound(
-#         name_mapping=(["ra"], ["ra_unit"]),
-#         original_lower_bound=0.0,
-#         original_upper_bound=2 * jnp.pi,
-#         target_lower_bound=0.0,
-#         target_upper_bound=1.0,
-#     ),
-#     # Declination (CosinePrior [-π/2, π/2] → sine ∈ [-1, 1] → [0, 1])
-#     SineTransform(name_mapping=(["dec"], ["sin_dec"])),
-#     BoundToBound(
-#         name_mapping=(["sin_dec"], ["sin_dec_unit"]),
-#         original_lower_bound=-1.0,
-#         original_upper_bound=1.0,
-#         target_lower_bound=0.0,
-#         target_upper_bound=1.0,
-#     ),
-#     # Tidal deformabilities
-#     BoundToBound(
-#         name_mapping=(["lambda_1"], ["lambda_1_unit"]),
-#         original_lower_bound=0.0,
-#         original_upper_bound=5000.0,
-#         target_lower_bound=0.0,
-#         target_upper_bound=1.0,
-#     ),
-#     BoundToBound(
-#         name_mapping=(["lambda_2"], ["lambda_2_unit"]),
-#         original_lower_bound=0.0,
-#         original_upper_bound=5000.0,
-#         target_lower_bound=0.0,
-#         target_upper_bound=1.0,
-#     ),
-# ]
+sample_transforms_nsaw = [
+    # Chirp mass
+    BoundToBound(
+        name_mapping=(["M_c"], ["M_c_unit"]),
+        original_lower_bound=M_c_min,
+        original_upper_bound=M_c_max,
+        target_lower_bound=0.0,
+        target_upper_bound=1.0,
+    ),
+    # Mass ratio
+    BoundToBound(
+        name_mapping=(["q"], ["q_unit"]),
+        original_lower_bound=q_min,
+        original_upper_bound=q_max,
+        target_lower_bound=0.0,
+        target_upper_bound=1.0,
+    ),
+    # Aligned spins
+    BoundToBound(
+        name_mapping=(["s1_z"], ["s1_z_unit"]),
+        original_lower_bound=-0.05,
+        original_upper_bound=0.05,
+        target_lower_bound=0.0,
+        target_upper_bound=1.0,
+    ),
+    BoundToBound(
+        name_mapping=(["s2_z"], ["s2_z_unit"]),
+        original_lower_bound=-0.05,
+        original_upper_bound=0.05,
+        target_lower_bound=0.0,
+        target_upper_bound=1.0,
+    ),
+    # Inclination (SinePrior [0, π] → cosine ∈ [-1, 1] → [0, 1])
+    CosineTransform(name_mapping=(["iota"], ["cos_iota"])),
+    BoundToBound(
+        name_mapping=(["cos_iota"], ["cos_iota_unit"]),
+        original_lower_bound=-1.0,
+        original_upper_bound=1.0,
+        target_lower_bound=0.0,
+        target_upper_bound=1.0,
+    ),
+    # Luminosity distance (PowerLawPrior α=2 → unit cube)
+    reverse_bijective_transform(
+        PowerLawTransform(
+            name_mapping=(["d_L_unit"], ["d_L"]),
+            xmin=d_L_min,
+            xmax=d_L_max,
+            alpha=2.0,
+        )
+    ),
+    # Coalescence time
+    BoundToBound(
+        name_mapping=(["t_c"], ["t_c_unit"]),
+        original_lower_bound=-0.1,
+        original_upper_bound=0.1,
+        target_lower_bound=0.0,
+        target_upper_bound=1.0,
+    ),
+    # Coalescence phase (periodic)
+    BoundToBound(
+        name_mapping=(["phase_c"], ["phase_c_unit"]),
+        original_lower_bound=0.0,
+        original_upper_bound=2 * jnp.pi,
+        target_lower_bound=0.0,
+        target_upper_bound=1.0,
+    ),
+    # Polarization angle (periodic)
+    BoundToBound(
+        name_mapping=(["psi"], ["psi_unit"]),
+        original_lower_bound=0.0,
+        original_upper_bound=jnp.pi,
+        target_lower_bound=0.0,
+        target_upper_bound=1.0,
+    ),
+    # Right ascension (periodic)
+    BoundToBound(
+        name_mapping=(["ra"], ["ra_unit"]),
+        original_lower_bound=0.0,
+        original_upper_bound=2 * jnp.pi,
+        target_lower_bound=0.0,
+        target_upper_bound=1.0,
+    ),
+    # Declination (CosinePrior [-π/2, π/2] → sine ∈ [-1, 1] → [0, 1])
+    SineTransform(name_mapping=(["dec"], ["sin_dec"])),
+    BoundToBound(
+        name_mapping=(["sin_dec"], ["sin_dec_unit"]),
+        original_lower_bound=-1.0,
+        original_upper_bound=1.0,
+        target_lower_bound=0.0,
+        target_upper_bound=1.0,
+    ),
+    # Tidal deformabilities
+    BoundToBound(
+        name_mapping=(["lambda_1"], ["lambda_1_unit"]),
+        original_lower_bound=0.0,
+        original_upper_bound=5000.0,
+        target_lower_bound=0.0,
+        target_upper_bound=1.0,
+    ),
+    BoundToBound(
+        name_mapping=(["lambda_2"], ["lambda_2_unit"]),
+        original_lower_bound=0.0,
+        original_upper_bound=5000.0,
+        target_lower_bound=0.0,
+        target_upper_bound=1.0,
+    ),
+]
 
 # --- Likelihood ---
 
@@ -300,49 +298,23 @@ speedup = full_grid_points / len(likelihood.unique_frequencies)
 print(f"  Full grid would need: {full_grid_points:,} points")
 print(f"  Speedup factor: {speedup:.1f}x")
 
-# --- Sample ---
-
-# FlowMC (default)
+# NS-AW (alternative
 jim = Jim(
     likelihood,
     prior,
-    sampler_config=FlowMCConfig(
-        n_chains=1000,
-        n_local_steps=100,
-        n_global_steps=1000,
-        n_training_loops=50,
-        n_production_loops=10,
-        n_NFproposal_batch_size=100,
-        global_thinning=100,
-        periodic={
-            "phase_c": (0.0, 2 * float(jnp.pi)),
-            "psi": (0.0, float(jnp.pi)),
-            "azimuth": (0.0, 2 * float(jnp.pi)),
-        },
+    sampler_config=BlackJAXNSAWConfig(
+        n_live=3000,
+        n_delete_frac=0.5,
+        n_target=60,
+        max_mcmc=5000,
+        termination_dlogz=0.1,
         verbose=True,
     ),
-    sample_transforms=sample_transforms,
+    sample_transforms=sample_transforms_nsaw,
     likelihood_transforms=likelihood_transforms,
     seed=42,
+    periodic=["phase_c_unit", "psi_unit", "ra_unit"],
 )
-
-# NS-AW (alternative — uncomment and swap sample_transforms to use)
-# jim = Jim(
-#     likelihood,
-#     prior,
-#     sampler_config=BlackJAXNSAWConfig(
-#         n_live=1400,
-#         n_delete_frac=0.5,
-#         n_target=60,
-#         max_mcmc=5000,
-#         termination_dlogz=0.1,
-#         verbose=True,
-#     ),
-#     sample_transforms=sample_transforms_nsaw,
-#     likelihood_transforms=likelihood_transforms,
-#     seed=42,
-#     periodic=["phase_c_unit", "psi_unit", "ra_unit"],
-# )
 
 print("\nStarting sampling...")
 
