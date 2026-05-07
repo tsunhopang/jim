@@ -236,10 +236,18 @@ def ripple_pv2_bilby_source(
     # bilby's MB likelihood sets waveform_arguments['frequencies'] to the unique
     # MB frequencies so the waveform is only evaluated at those points.
     # For non-relative-binning, non-MB calls we always use the full frequency_array.
+    # NOTE: check `frequencies` (MB key) BEFORE `fiducial` (relative-binning key).
+    # After a relative-binning test, the shared WaveformGenerator retains
+    # fiducial=0 and frequency_bin_edges in waveform_arguments.  The MB likelihood
+    # then adds frequencies=unique_mb_freqs.  Without the early exit here, fiducial=0
+    # would cause the else-branch to use frequency_bin_edges (~62 pts) instead of the
+    # 4229 unique MB frequencies, producing an IndexError in calculate_snrs.
     fiducial = kwargs.get("fiducial", 1)
     mb_frequencies = kwargs.get("frequencies", None)
-    if mb_frequencies is not None and fiducial != 0:
-        # MB likelihood: evaluate only at the unique MB frequency points
+    if mb_frequencies is not None:
+        # MB likelihood: evaluate only at the unique MB frequency points.
+        # Takes priority over fiducial flag which may be a leftover from a
+        # relative-binning likelihood sharing the same WaveformGenerator.
         eval_freqs = mb_frequencies
     elif fiducial == 1:
         # Full-grid evaluation (fiducial setup, or standard likelihoods)
