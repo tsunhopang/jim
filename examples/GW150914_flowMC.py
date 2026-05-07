@@ -119,48 +119,34 @@ jim = Jim(
     ),
 )
 
-initial = jim.prior.sample(key, n)
-for transform in jim.sample_transforms:
-    initial = jax.vmap(transform.forward)(initial)
+start_time = time.time()
+jim.sample()
+end_time = time.time()
+print(f"Sampling time: {(end_time - start_time) / 60:.2f} minutes")
 
-import matplotlib.pyplot as plt
+# --- Results ---
 
-# Plot the histogram for t_det before sampling
-t_det_samples = initial["t_det"]
-plt.hist(t_det_samples, bins=50, density=True)
-plt.xlabel("t_det")
-plt.ylabel("Density")
-plt.savefig(Path(__file__).parent / "t_det_histogram_before.png")
-plt.clf()
+diagnostics = jim.get_diagnostics()
+print(f"Likelihood evaluations: {diagnostics['n_likelihood_evaluations']:,}")
 
-# start_time = time.time()
-# jim.sample()
-# end_time = time.time()
-# print(f"Sampling time: {(end_time - start_time) / 60:.2f} minutes")
+chains = jim.get_samples()
 
-# # --- Results ---
+parameter_labels = {
+    "M_c": r"$\mathcal{M}_c\,[M_\odot]$",
+    "q": r"$q$",
+    "s1_z": r"$s_{1,z}$",
+    "s2_z": r"$s_{2,z}$",
+    "iota": r"$\iota$",
+    "d_L": r"$d_L\,[\mathrm{Mpc}]$",
+    "t_c": r"$t_c\,[\mathrm{s}]$",
+    "phase_c": r"$\phi_c$",
+    "psi": r"$\psi$",
+    "ra": r"$\alpha$",
+    "dec": r"$\delta$",
+}
 
-# diagnostics = jim.get_diagnostics()
-# print(f"Likelihood evaluations: {diagnostics['n_likelihood_evaluations']:,}")
-
-# chains = jim.get_samples()
-
-# parameter_labels = {
-#     "M_c": r"$\mathcal{M}_c\,[M_\odot]$",
-#     "q": r"$q$",
-#     "s1_z": r"$s_{1,z}$",
-#     "s2_z": r"$s_{2,z}$",
-#     "iota": r"$\iota$",
-#     "d_L": r"$d_L\,[\mathrm{Mpc}]$",
-#     "t_c": r"$t_c\,[\mathrm{s}]$",
-#     "phase_c": r"$\phi_c$",
-#     "psi": r"$\psi$",
-#     "ra": r"$\alpha$",
-#     "dec": r"$\delta$",
-# }
-
-# fig = corner.corner(
-#     np.stack([chains[key] for key in jim.prior.parameter_names]).T[::10],
-#     labels=[parameter_labels.get(k, k) for k in jim.prior.parameter_names],
-# )
-# fig.savefig(Path(__file__).parent / "GW150914_flowMC.png")
+fig = corner.corner(
+    np.stack([chains[key] for key in jim.prior.parameter_names]).T[::10],
+    labels=[parameter_labels.get(k, k) for k in jim.prior.parameter_names],
+)
+fig.savefig(Path(__file__).parent / "GW150914_flowMC.png")
