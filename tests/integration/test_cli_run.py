@@ -1,0 +1,121 @@
+"""Integration test: full jim-run pipeline from TOML config."""
+
+import tomllib
+from pathlib import Path
+
+import pytest
+import tomli_w
+from typer.testing import CliRunner
+
+from jimgw.cli import app
+
+pytestmark = pytest.mark.integration
+
+_CONFIG = Path("tests/configs/GW150914_file.toml")
+_RUNNER = CliRunner()
+
+
+@pytest.fixture()
+def tmp_output(tmp_path):
+    """Yield a dedicated output subdirectory separate from the config file location."""
+    out = tmp_path / "output"
+    out.mkdir()
+    yield out
+
+
+@pytest.fixture()
+def patched_config(tmp_output, tmp_path):
+    """Copy the test config and patch output.dir to tmp_output."""
+    with open(_CONFIG, "rb") as f:
+        raw = tomllib.load(f)
+    raw["output"]["dir"] = str(tmp_output)
+    raw["output"]["overwrite"] = True
+    cfg_path = tmp_path / "test_cfg.toml"
+    with open(cfg_path, "wb") as f:
+        tomli_w.dump(raw, f)
+    return cfg_path
+
+
+# ---------------------------------------------------------------------------
+# Full run + output files
+# ---------------------------------------------------------------------------
+
+
+def test_full_run_output_files(patched_config, tmp_output):
+    result = _RUNNER.invoke(app, [str(patched_config)])
+    assert result.exit_code == 0, result.output
+
+    assert (tmp_output / "samples.npz").exists()
+    assert (tmp_output / "config.final.toml").exists()
+
+
+def test_full_run_samples_shape(patched_config, tmp_output):
+    import numpy as np
+
+    result = _RUNNER.invoke(app, [str(patched_config)])
+    assert result.exit_code == 0, result.output
+    data = np.load(tmp_output / "samples.npz")
+    expected_params = {
+        "M_c",
+        "q",
+        "s1_z",
+        "s2_z",
+        "iota",
+        "d_L",
+        "t_c",
+        "phase_c",
+        "psi",
+        "ra",
+        "dec",
+        "log_likelihood",
+    }
+    assert set(data.files) == expected_params
+    n = data["M_c"].shape[0]
+    assert n > 0
+    for key in expected_params:
+        assert data[key].shape == (n,)
+
+
+def test_init_creates_template(tmp_path):
+    out = tmp_path / "template.toml"
+    result = _RUNNER.invoke(app, ["--init", str(out)])
+    assert result.exit_code == 0
+    assert out.exists()
+    with open(out, "rb") as f:
+        raw = tomllib.load(f)
+    assert "data" in raw
+    assert "prior" in raw
+    assert "likelihood" in raw
+
+
+def test_init_refuses_overwrite(tmp_path):
+    out = tmp_path / "template.toml"
+    out.write_text("existing")
+    result = _RUNNER.invoke(app, ["--init", str(out)])
+    assert result.exit_code == 2
+
+
+def test_missing_config_exits_with_code_2(tmp_path):
+    result = _RUNNER.invoke(app, [str(tmp_path / "nonexistent.toml")])
+    assert result.exit_code == 2
+
+
+def test_no_args_exits_with_code_2():
+    result = _RUNNER.invoke(app, [])
+    assert result.exit_code == 2
+
+
+def test_overwrite_false_raises(patched_config, tmp_output):
+    # First run succeeds
+    result = _RUNNER.invoke(app, [str(patched_config)])
+    assert result.exit_code == 0
+
+    # Second run with overwrite=false should fail
+    with open(patched_config, "rb") as f:
+        raw = tomllib.load(f)
+    raw["output"]["overwrite"] = False
+    cfg2 = patched_config.parent / "no_overwrite.toml"
+    with open(cfg2, "wb") as f:
+        tomli_w.dump(raw, f)
+    result2 = _RUNNER.invoke(app, [str(cfg2)])
+    assert result2.exit_code == 2
