@@ -261,8 +261,7 @@ def _build_unit_cube_transforms(
     prior to ``t_det`` with exact bounds) and AFTER ``infer_sample_transforms``.
     The returned list is appended to ``sample_transforms``.
 
-    Raises ``ValueError`` for prior types with infinite support (Gaussian, Rayleigh,
-    UniformSphere) that cannot be mapped to a bounded interval.
+    Raises ``AssertionError`` for ``GaussianSpec``.
     """
     unit_transforms: list[BijectiveTransform] = []
 

@@ -1,8 +1,39 @@
 """Unit tests for transform inference logic."""
 
 import pytest
+from pydantic import ValidationError
 
-from jimgw.cli._config import SamplingConfig
+from jimgw.cli._config import PipelineConfig, PriorConfig, SamplingConfig, UniformSpec
+from jimgw.cli._prior import adapt_prior_for_ns_time
+
+
+_MINIMAL_DATA = {
+    "type": "gwosc",
+    "detectors": ["H1", "L1"],
+    "trigger_time": 1126259462.4,
+    "duration": 4.0,
+    "psd_duration": 1024.0,
+}
+
+_MINIMAL_PRIOR = {
+    "M_c": {"type": "uniform", "min": 10.0, "max": 80.0},
+    "q": {"type": "uniform", "min": 0.125, "max": 1.0},
+}
+
+
+def _make_pipeline_cfg(prior_raw=None, sky_frame="detector", time_frame="detector"):
+    """Build a minimal PipelineConfig, merging prior_raw on top of _MINIMAL_PRIOR."""
+    return PipelineConfig.model_validate(
+        {
+            "data": _MINIMAL_DATA,
+            "waveform": {"approximant": "IMRPhenomXAS"},
+            "prior": {**_MINIMAL_PRIOR, **(prior_raw or {})},
+            "likelihood": {"f_min": 20.0, "f_max": 1024.0},
+            "sampler": {"type": "flowmc"},
+            "output": {"dir": "tests/tmp/test"},
+            "sampling": {"sky_frame": sky_frame, "time_frame": time_frame},
+        }
+    )
 
 
 def _make_ifos():
@@ -222,44 +253,33 @@ def test_j_frame_spin_angles():
 
 
 def test_j_frame_iota_conflict():
-    from jimgw.cli._config import SamplingConfig
-    from jimgw.cli._transforms import validate_config
-
-    with pytest.raises(ValueError, match="iota"):
-        validate_config(
-            frozenset(
-                {
-                    "theta_jn",
-                    "phi_jl",
-                    "tilt_1",
-                    "tilt_2",
-                    "phi_12",
-                    "a_1",
-                    "a_2",
-                    "iota",  # conflict
-                    "M_c",
-                    "q",
-                }
-            ),
-            SamplingConfig(),
+    with pytest.raises(ValidationError, match="iota"):
+        _make_pipeline_cfg(
+            prior_raw={
+                "theta_jn": {"type": "uniform", "min": 0.0, "max": 3.14159},
+                "phi_jl": {"type": "uniform", "min": 0.0, "max": 6.28318},
+                "tilt_1": {"type": "sine"},
+                "tilt_2": {"type": "sine"},
+                "phi_12": {"type": "uniform", "min": 0.0, "max": 6.28318},
+                "a_1": {"type": "uniform", "min": 0.0, "max": 0.99},
+                "a_2": {"type": "uniform", "min": 0.0, "max": 0.99},
+                "iota": {"type": "sine"},  # conflict
+                "M_c": {"type": "uniform", "min": 10.0, "max": 80.0},
+                "q": {"type": "uniform", "min": 0.125, "max": 1.0},
+            }
         )
 
 
 def test_j_frame_partial_params_rejected():
-    from jimgw.cli._config import SamplingConfig
-    from jimgw.cli._transforms import validate_config
-
-    with pytest.raises(ValueError, match="missing"):
-        validate_config(
-            frozenset(
-                {
-                    "theta_jn",
-                    "phi_jl",  # only 2 of 7 J-frame params
-                    "M_c",
-                    "q",
-                }
-            ),
-            SamplingConfig(),
+    with pytest.raises(ValidationError, match="missing"):
+        _make_pipeline_cfg(
+            prior_raw={
+                "theta_jn": {"type": "uniform", "min": 0.0, "max": 3.14159},
+                "phi_jl": {"type": "uniform", "min": 0.0, "max": 6.28318},
+                # only 2 of 7 J-frame params
+                "M_c": {"type": "uniform", "min": 10.0, "max": 80.0},
+                "q": {"type": "uniform", "min": 0.125, "max": 1.0},
+            }
         )
 
 
@@ -334,55 +354,56 @@ def test_cartesian_spins_no_transform():
 
 
 def test_spin_groups_mutually_exclusive():
-    from jimgw.cli._config import SamplingConfig
-    from jimgw.cli._transforms import validate_config
-
-    with pytest.raises(ValueError, match="mutually exclusive"):
-        validate_config(
-            frozenset(
-                {
-                    "s1_z",
-                    "s2_z",  # aligned
-                    "s1_mag",
-                    "s1_theta",
-                    "s1_phi",  # spherical
-                }
-            ),
-            SamplingConfig(),
+    with pytest.raises(ValidationError, match="mutually exclusive"):
+        _make_pipeline_cfg(
+            prior_raw={
+                "s1_z": {"type": "uniform", "min": -0.99, "max": 0.99},
+                "s2_z": {"type": "uniform", "min": -0.99, "max": 0.99},
+                "s1_mag": {"type": "uniform", "min": 0.0, "max": 0.99},
+                "s1_theta": {"type": "sine"},
+                "s1_phi": {"type": "uniform", "min": 0.0, "max": 6.28318},
+            }
         )
 
 
 def test_sky_groups_mutually_exclusive():
-    from jimgw.cli._config import SamplingConfig
-    from jimgw.cli._transforms import validate_config
-
-    with pytest.raises(ValueError, match="mutually exclusive"):
-        validate_config(frozenset({"ra", "dec", "azimuth", "zenith"}), SamplingConfig())
+    with pytest.raises(ValidationError, match="mutually exclusive"):
+        _make_pipeline_cfg(
+            prior_raw={
+                "ra": {"type": "uniform", "min": 0.0, "max": 6.28318},
+                "dec": {"type": "cosine"},
+                "azimuth": {"type": "uniform", "min": 0.0, "max": 6.28318},
+                "zenith": {"type": "sine"},
+            }
+        )
 
 
 def test_time_groups_mutually_exclusive():
-    from jimgw.cli._config import SamplingConfig
-    from jimgw.cli._transforms import validate_config
-
-    with pytest.raises(ValueError, match="mutually exclusive"):
-        validate_config(frozenset({"t_c", "t_det"}), SamplingConfig())
+    with pytest.raises(ValidationError, match="mutually exclusive"):
+        _make_pipeline_cfg(
+            prior_raw={
+                "t_c": {"type": "uniform", "min": -0.1, "max": 0.1},
+                "t_det": {"type": "uniform", "min": -0.1, "max": 0.1},
+            }
+        )
 
 
 def test_t_det_geocentric_time_frame_raises():
-    from jimgw.cli._config import SamplingConfig
-    from jimgw.cli._transforms import validate_config
-
-    with pytest.raises(ValueError, match="t_det"):
-        validate_config(frozenset({"t_det"}), SamplingConfig(time_frame="geocentric"))
+    with pytest.raises(ValidationError, match="t_det"):
+        _make_pipeline_cfg(
+            prior_raw={"t_det": {"type": "uniform", "min": -0.1, "max": 0.1}},
+            time_frame="geocentric",
+        )
 
 
 def test_detector_sky_geocentric_sky_frame_raises():
-    from jimgw.cli._config import SamplingConfig
-    from jimgw.cli._transforms import validate_config
-
-    with pytest.raises(ValueError, match="azimuth"):
-        validate_config(
-            frozenset({"azimuth", "zenith"}), SamplingConfig(sky_frame="geocentric")
+    with pytest.raises(ValidationError, match="azimuth"):
+        _make_pipeline_cfg(
+            prior_raw={
+                "azimuth": {"type": "uniform", "min": 0.0, "max": 6.28318},
+                "zenith": {"type": "sine"},
+            },
+            sky_frame="geocentric",
         )
 
 
@@ -393,17 +414,11 @@ def test_detector_sky_geocentric_sky_frame_raises():
 
 def _make_prior_cfg(params: dict):
     """Build a PriorConfig from a dict of {name: spec_dict}."""
-    from jimgw.cli._config import PriorConfig
-
     return PriorConfig.model_validate(params)
 
 
 def test_adapt_ns_time_converts_t_c_to_t_det():
     """t_c in prior + detector time_frame → replaced by t_det with widened GPS bounds."""
-
-    from jimgw.cli._config import SamplingConfig, UniformSpec
-    from jimgw.cli._prior import adapt_prior_for_ns_time
-
     ifos = _make_ifos()
     cfg = SamplingConfig(time_frame="detector")
     prior_cfg = _make_prior_cfg(
@@ -429,10 +444,6 @@ def test_adapt_ns_time_converts_t_c_to_t_det():
 
 def test_adapt_ns_time_geocentric_no_conversion():
     """time_frame='geocentric' → no conversion; t_c sampled directly is already exact."""
-
-    from jimgw.cli._config import SamplingConfig
-    from jimgw.cli._prior import adapt_prior_for_ns_time
-
     ifos = _make_ifos()
     cfg = SamplingConfig(time_frame="geocentric")
     prior_cfg = _make_prior_cfg(
@@ -448,10 +459,6 @@ def test_adapt_ns_time_geocentric_no_conversion():
 
 def test_adapt_ns_time_t_det_in_prior_no_conversion():
     """User already put t_det in prior → no conversion needed."""
-
-    from jimgw.cli._config import SamplingConfig
-    from jimgw.cli._prior import adapt_prior_for_ns_time
-
     ifos = _make_ifos()
     cfg = SamplingConfig(time_frame="detector")
     lo = TRIGGER_TIME - 0.15
@@ -469,10 +476,6 @@ def test_adapt_ns_time_t_det_in_prior_no_conversion():
 
 def test_adapt_ns_time_t_det_geocentric():
     """t_det in prior + geocentric sampling → adapted to widened t_c prior."""
-
-    from jimgw.cli._config import SamplingConfig, UniformSpec
-    from jimgw.cli._prior import adapt_prior_for_ns_time
-
     ifos = _make_ifos()
     cfg = SamplingConfig(time_frame="geocentric")
     lo = TRIGGER_TIME - 0.15
@@ -492,11 +495,6 @@ def test_adapt_ns_time_t_det_geocentric():
 
 def test_adapt_ns_time_non_uniform_t_c_raises():
     """Non-uniform t_c prior cannot be auto-converted for NS."""
-
-    from jimgw.cli._config import SamplingConfig
-    from jimgw.cli._prior import adapt_prior_for_ns_time
-
-    ifos = _make_ifos()
     cfg = SamplingConfig(time_frame="detector")
     prior_cfg = _make_prior_cfg(
         {
@@ -504,5 +502,45 @@ def test_adapt_ns_time_non_uniform_t_c_raises():
         }
     )
 
-    with pytest.raises(ValueError, match="uniform"):
+    with pytest.raises(AssertionError, match="uniform"):
         adapt_prior_for_ns_time(prior_cfg, cfg)
+
+
+# ---------------------------------------------------------------------------
+# NS-AW: unit-cube transform for Rayleigh prior
+# ---------------------------------------------------------------------------
+
+
+def test_ns_aw_unit_cube_rayleigh_transform():
+    """RayleighSpec produces reverse_bijective_transform(RayleighTransform) for NS-AW."""
+    from jimgw.core.transforms import RayleighTransform
+
+    from jimgw.cli._transforms import _build_unit_cube_transforms
+
+    prior_cfg = _make_prior_cfg({"sigma_spin": {"type": "rayleigh", "scale": 0.5}})
+    sampling_cfg = SamplingConfig()
+
+    transforms = _build_unit_cube_transforms(
+        frozenset(["sigma_spin"]), prior_cfg, sampling_cfg
+    )
+
+    assert len(transforms) == 1
+    t = transforms[0]
+    # The unit-cube transform is the reverse of RayleighTransform, so its forward
+    # maps sigma_spin → sigma_spin_unit and its name_mapping reflects that.
+    assert "sigma_spin" in str(t.name_mapping)
+    assert "sigma_spin_unit" in str(t.name_mapping)
+    # Verify it is the inverse of RayleighTransform with scale=0.5
+    import jax.numpy as jnp
+
+    x = {"sigma_spin": jnp.array(0.3)}
+    result = t.forward(x)
+    assert "sigma_spin_unit" in result
+    u = float(result["sigma_spin_unit"])
+    assert 0.0 <= u <= 1.0
+    # Round-trip: apply the forward of the original RayleighTransform to recover sigma_spin
+    rt = RayleighTransform(
+        name_mapping=(["sigma_spin_unit"], ["sigma_spin"]), sigma=0.5
+    )
+    recovered = rt.forward(result)
+    assert abs(float(recovered["sigma_spin"]) - 0.3) < 1e-5

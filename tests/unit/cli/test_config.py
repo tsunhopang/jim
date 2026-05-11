@@ -13,6 +13,7 @@ from jimgw.cli._config import (
     PipelineConfig,
     PowerLawSpec,
     PriorConfig,
+    RayleighSpec,
     SineSpec,
     UniformSpec,
     WaveformConfig,
@@ -92,7 +93,7 @@ def test_pipeline_config_injection_data():
 
 def test_prior_config_dict_keys():
     raw_prior = {
-        "M_c": {"type": "uniform", "min": 10.0, "max": 80.0},
+        "M_c": {"type": "rayleigh", "scale": 15.0},
         "q": {"type": "uniform", "min": 0.125, "max": 1.0},
         "iota": {"type": "sine"},
         "dec": {"type": "cosine"},
@@ -100,9 +101,8 @@ def test_prior_config_dict_keys():
     }
     cfg = PriorConfig.model_validate(raw_prior)
     assert list(cfg.root.keys()) == ["M_c", "q", "iota", "dec", "d_L"]
-    assert isinstance(cfg.root["M_c"], UniformSpec)
-    assert cfg.root["M_c"].min == 10.0
-    assert cfg.root["M_c"].max == 80.0
+    assert isinstance(cfg.root["M_c"], RayleighSpec)
+    assert cfg.root["M_c"].scale == 15.0
     assert isinstance(cfg.root["iota"], SineSpec)
     assert isinstance(cfg.root["dec"], CosineSpec)
     assert isinstance(cfg.root["d_L"], PowerLawSpec)
