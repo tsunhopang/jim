@@ -11,10 +11,26 @@ The CLI figures out *how* (transforms, parameter conversions, consistency checks
 from pathlib import Path
 from typing import Annotated, Literal, Optional, Union
 
-from pydantic import BaseModel, Discriminator, Field, RootModel, model_validator
+from pydantic import (
+    BaseModel,
+    Discriminator,
+    Field,
+    RootModel,
+    field_validator,
+    model_validator,
+)
 
 # SamplerConfig is safe to import here — samplers/config.py only uses numpy.
 from jimgw.samplers.config import SamplerConfig
+
+
+from jimgw.cli._params import (
+    CARTESIAN_SPIN_PARAMS as _CARTESIAN_SPIN_PARAMS,
+    DETECTOR_SKY_PARAMS as _DETECTOR_SKY_PARAMS,
+    EQUATORIAL_SKY_PARAMS as _EQUATORIAL_SKY_PARAMS,
+    J_FRAME_SPIN_PARAMS as _J_FRAME_SPIN_PARAMS,
+    SUPPORTED_DETECTORS as _SUPPORTED_DETECTORS,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -24,8 +40,21 @@ from jimgw.samplers.config import SamplerConfig
 
 class _DataBase(BaseModel):
     model_config = {"extra": "forbid"}
-    ifos: list[str]
+    detectors: list[str]
     trigger_time: float
+
+    @field_validator("detectors")
+    @classmethod
+    def _check_detectors(cls, v: list[str]) -> list[str]:
+        if not v:
+            raise ValueError("data.detectors must be a non-empty list")
+        unknown = [d for d in v if d not in _SUPPORTED_DETECTORS]
+        if unknown:
+            raise ValueError(
+                f"Unknown detector name(s): {unknown}. "
+                f"Supported: {sorted(_SUPPORTED_DETECTORS)}"
+            )
+        return v
 
 
 class GWOSCDataConfig(_DataBase):
@@ -230,6 +259,14 @@ class CLIDistanceMargConfig(BaseModel):
     n_dist_points: int = 10000
     ref_dist: Optional[float] = None
 
+    @model_validator(mode="after")
+    def _check_single_distance_param(self) -> "CLIDistanceMargConfig":
+        if len(self.distance_prior.root) != 1:
+            raise ValueError(
+                "distance_marginalization.distance_prior must contain exactly one parameter"
+            )
+        return self
+
 
 class CLIOptimizerRefParams(BaseModel):
     """Find reference parameters automatically via CMA-ES (default)."""
@@ -294,6 +331,19 @@ class LikelihoodConfig(BaseModel):
     distance_marginalization: Optional[CLIDistanceMargConfig] = None
     heterodyne: Optional[CLIHeterodynedConfig] = None
 
+    @model_validator(mode="after")
+    def _validate_marginalization_conflicts(self) -> "LikelihoodConfig":
+        if self.heterodyne is not None:
+            if self.time_marginalization is not None:
+                raise ValueError(
+                    "time_marginalization cannot be used with heterodyne likelihood"
+                )
+            if self.distance_marginalization is not None:
+                raise ValueError(
+                    "distance_marginalization cannot be used with heterodyne likelihood"
+                )
+        return self
+
 
 # ---------------------------------------------------------------------------
 # Output section
@@ -327,3 +377,173 @@ class PipelineConfig(BaseModel):
     likelihood: LikelihoodConfig
     sampler: SamplerConfig
     output: OutputConfig
+
+    @model_validator(mode="after")
+    def _validate_injection_frame_consistency(self) -> "PipelineConfig":
+        if not isinstance(self.data, InjectionDataConfig):
+            return self
+        inj = set(self.data.injection_parameters)
+        if "t_det" in inj and self.sampling.time_frame == "geocentric":
+            raise ValueError(
+                "injection_parameters uses 't_det' but [sampling].time_frame = "
+                "'geocentric'. Use 't_c' in injection_parameters, or set "
+                "time_frame to 'detector' or a specific detector name."
+            )
+        if inj & _DETECTOR_SKY_PARAMS and self.sampling.sky_frame != "detector":
+            raise ValueError(
+                "injection_parameters uses detector-frame sky position "
+                "('azimuth'/'zenith') but [sampling].sky_frame != 'detector'. "
+                "Use 'ra'/'dec' in injection_parameters, or set sky_frame = 'detector'."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_spin_parametrization(self) -> "PipelineConfig":
+        prior_keys = frozenset(self.prior.root.keys())
+
+        has_j_frame = bool(prior_keys & _J_FRAME_SPIN_PARAMS)
+        has_sphere_spin = any(
+            isinstance(self.prior.root.get(label), UniformSphereSpec)
+            or all(f"{label}_{s}" in prior_keys for s in ("mag", "theta", "phi"))
+            for label in ("s1", "s2")
+        )
+        has_cartesian_spin = bool(prior_keys & _CARTESIAN_SPIN_PARAMS)
+
+        if sum([has_j_frame, has_sphere_spin, has_cartesian_spin]) > 1:
+            raise ValueError(
+                "Spin parametrizations are mutually exclusive. "
+                "Found more than one of: J-frame angles, spherical per-spin, "
+                f"Cartesian/aligned spins. Prior parameters: {sorted(prior_keys)}"
+            )
+
+        if has_j_frame:
+            if "iota" in prior_keys:
+                raise ValueError(
+                    "J-frame spin angles produce 'iota' — 'iota' must not also appear in [prior]."
+                )
+            missing_j = _J_FRAME_SPIN_PARAMS - prior_keys
+            if missing_j:
+                raise ValueError(
+                    "J-frame spin parametrization requires all 7 parameters; "
+                    f"missing from [prior]: {sorted(missing_j)}"
+                )
+            missing_mass = {"M_c", "q"} - prior_keys
+            if missing_mass:
+                raise ValueError(
+                    f"SpinAnglesToCartesianSpinTransform requires {missing_mass} in [prior] "
+                    "as conditioning parameters."
+                )
+
+        return self
+
+    @model_validator(mode="after")
+    def _validate_sky_time_parametrization(self) -> "PipelineConfig":
+        prior_keys = frozenset(self.prior.root.keys())
+
+        has_equatorial_sky = bool(prior_keys & _EQUATORIAL_SKY_PARAMS)
+        has_detector_sky = bool(prior_keys & _DETECTOR_SKY_PARAMS)
+        if has_equatorial_sky and has_detector_sky:
+            raise ValueError(
+                "Sky parametrizations are mutually exclusive: "
+                "cannot have both ra/dec and azimuth/zenith in [prior]."
+            )
+        if has_detector_sky and self.sampling.sky_frame == "geocentric":
+            raise ValueError(
+                "azimuth/zenith are in [prior] but sky_frame='geocentric' requests "
+                "equatorial-sky sampling. Either remove azimuth/zenith from [prior] "
+                "and use ra/dec, or set sky_frame='detector'."
+            )
+
+        has_geocentric_time = "t_c" in prior_keys
+        has_detector_time = "t_det" in prior_keys
+        if has_geocentric_time and has_detector_time:
+            raise ValueError(
+                "Time parametrizations are mutually exclusive: "
+                "cannot have both t_c and t_det in [prior]."
+            )
+        if has_detector_time and self.sampling.time_frame == "geocentric":
+            raise ValueError(
+                "t_det is in [prior] but time_frame='geocentric' requests geocentric-time "
+                "sampling. Either remove t_det from [prior] and use t_c, or set "
+                "time_frame to 'detector' or a specific detector name."
+            )
+
+        return self
+
+    @model_validator(mode="after")
+    def _validate_sampling_ifo_consistency(self) -> "PipelineConfig":
+        if self.sampling.time_frame not in ("detector", "geocentric"):
+            if self.sampling.time_frame not in self.data.detectors:
+                raise ValueError(
+                    f"[sampling] time_frame={self.sampling.time_frame!r} is not in "
+                    f"data.detectors {self.data.detectors}"
+                )
+
+        prior_keys = frozenset(self.prior.root.keys())
+        has_sky_params = bool(
+            prior_keys & (_EQUATORIAL_SKY_PARAMS | _DETECTOR_SKY_PARAMS)
+        )
+        if (
+            has_sky_params
+            and self.sampling.sky_frame == "detector"
+            and len(self.data.detectors) < 2
+        ):
+            raise ValueError(
+                "Sky position sampling in detector frame requires at least 2 detectors; "
+                f"got {self.data.detectors}"
+            )
+
+        return self
+
+    @model_validator(mode="after")
+    def _validate_ns_aw_constraints(self) -> "PipelineConfig":
+        if self.sampler.type != "blackjax-ns-aw":
+            return self
+
+        for name, spec in self.prior.root.items():
+            if isinstance(spec, (GaussianSpec, RayleighSpec)):
+                raise ValueError(
+                    f"Prior type '{type(spec).__name__}' for parameter '{name}' has "
+                    "infinite support and cannot be automatically mapped to [0, 1] for "
+                    "NS-AW. Use a bounded prior (uniform, sine, cosine, power_law) instead."
+                )
+
+        prior_keys = frozenset(self.prior.root.keys())
+
+        if "t_det" in prior_keys and not isinstance(
+            self.prior.root["t_det"], UniformSpec
+        ):
+            raise ValueError(
+                "NS-AW sampler: the 't_det' prior must be 'uniform' for automatic "
+                "conversion to 't_c'. Either use a uniform t_det prior or replace "
+                "'t_det' with 't_c' in [prior]."
+            )
+
+        if (
+            "t_c" in prior_keys
+            and self.sampling.time_frame != "geocentric"
+            and not isinstance(self.prior.root["t_c"], UniformSpec)
+        ):
+            raise ValueError(
+                "NS-AW sampler: the 't_c' prior must be 'uniform' for automatic "
+                "conversion to 't_det'. Either use a uniform t_c prior, set "
+                "[sampling] time_frame = 'geocentric' to sample t_c directly, or "
+                "replace 't_c' with 't_det' in [prior]."
+            )
+
+        return self
+
+    @model_validator(mode="after")
+    def _validate_heterodyne_ref_data_type(self) -> "PipelineConfig":
+        if (
+            self.likelihood.heterodyne is not None
+            and isinstance(
+                self.likelihood.heterodyne.reference_parameters, CLIInjectionRefParams
+            )
+            and not isinstance(self.data, InjectionDataConfig)
+        ):
+            raise ValueError(
+                "heterodyne.reference_parameters.type = 'injection' requires "
+                "data.type = 'injection'"
+            )
+        return self

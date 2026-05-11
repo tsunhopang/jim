@@ -11,7 +11,7 @@ from jimgw.cli._config import (
     InjectionDataConfig,
     LikelihoodConfig,
 )
-from jimgw.cli._data import to_likelihood_space
+from jimgw.cli._transforms import to_likelihood_space
 from jimgw.cli._prior import build_prior
 from jimgw.core.prior import CombinePrior
 from jimgw.core.single_event.detector import GroundBased2G
@@ -38,6 +38,7 @@ def build_likelihood(
     prior: Optional[CombinePrior] = None,
     likelihood_transforms: Optional[list[NtoMTransform]] = None,
     data_cfg: Optional[DataConfig] = None,
+    time_frame: Optional[str] = None,
 ) -> Union[TransientLikelihoodFD, HeterodynedTransientLikelihoodFD]:
     """Build a likelihood from the validated likelihood config.
 
@@ -56,18 +57,9 @@ def build_likelihood(
     fixed_params = cfg.fixed_parameters if cfg.fixed_parameters else None
 
     if cfg.heterodyne is not None:
-        if cfg.time_marginalization is not None:
-            raise ValueError(
-                "time_marginalization cannot be used with heterodyne likelihood"
-            )
-        if cfg.distance_marginalization is not None:
-            raise ValueError(
-                "distance_marginalization cannot be used with heterodyne likelihood"
-            )
-        if prior is None:
-            raise ValueError(
-                "heterodyne likelihood requires the prior — pass prior= to build_likelihood"
-            )
+        assert prior is not None, (
+            "heterodyne likelihood requires the prior — pass prior= to build_likelihood"
+        )
 
         ref_cfg = cfg.heterodyne.reference_parameters
         reference_params: Optional[dict] = None
@@ -80,14 +72,16 @@ def build_likelihood(
         elif isinstance(ref_cfg, CLIProvidedRefParams):
             reference_params = ref_cfg.values
         elif isinstance(ref_cfg, CLIInjectionRefParams):
-            if not isinstance(data_cfg, InjectionDataConfig):
-                raise ValueError(
-                    "heterodyne.reference_parameters.type = 'injection' requires "
-                    "data.type = 'injection'"
-                )
+            assert isinstance(data_cfg, InjectionDataConfig), (
+                "heterodyne.reference_parameters.type = 'injection' requires "
+                "data.type = 'injection'"
+            )
             reference_params = to_likelihood_space(
                 data_cfg.injection_parameters,
                 waveform_f_ref=waveform_f_ref,
+                trigger_time=trigger_time,
+                ifos=ifos,
+                time_frame=time_frame,
             )
             logger.info(
                 "Using injection parameters as heterodyne reference: %s",
@@ -124,10 +118,9 @@ def build_likelihood(
     dist_marg = None
     if cfg.distance_marginalization is not None:
         dist_combined = build_prior(cfg.distance_marginalization.distance_prior)
-        if len(dist_combined.base_prior) != 1:
-            raise ValueError(
-                "distance_marginalization.distance_prior must contain exactly one parameter"
-            )
+        assert len(dist_combined.base_prior) == 1, (
+            "distance_marginalization.distance_prior must contain exactly one parameter"
+        )
         dist_marg = DistanceMargConfig(
             distance_prior=dist_combined.base_prior[0],
             n_dist_points=cfg.distance_marginalization.n_dist_points,

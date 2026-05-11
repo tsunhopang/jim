@@ -19,6 +19,7 @@ they are derived automatically from the parametrization.
 import logging
 from typing import Optional
 
+import jax.numpy as jnp
 from jax.numpy import pi as _PI
 
 from jimgw.cli._config import (
@@ -31,6 +32,11 @@ from jimgw.cli._config import (
     SineSpec,
     UniformSpec,
     UniformSphereSpec,
+)
+from jimgw.cli._params import (
+    DETECTOR_SKY_PARAMS as _DETECTOR_SKY_PARAMS,
+    EQUATORIAL_SKY_PARAMS as _EQUATORIAL_SKY_PARAMS,
+    J_FRAME_SPIN_PARAMS as _J_FRAME_SPIN_PARAMS,
 )
 from jimgw.core.single_event.detector import GroundBased2G
 from jimgw.core.single_event.transforms import (
@@ -53,20 +59,6 @@ from jimgw.core.transforms import (
 logger = logging.getLogger(__name__)
 
 _TWO_PI = 2 * _PI
-
-# ---------------------------------------------------------------------------
-# Parameter group constants
-# ---------------------------------------------------------------------------
-
-_J_FRAME_SPIN_PARAMS = frozenset(
-    {"theta_jn", "phi_jl", "tilt_1", "tilt_2", "phi_12", "a_1", "a_2"}
-)
-_SPHERE_SPIN_LABELS = ("s1", "s2")
-_ALIGNED_SPIN_PARAMS = frozenset({"s1_z", "s2_z"})
-_CARTESIAN_SPIN_PARAMS = frozenset({"s1_x", "s1_y", "s1_z", "s2_x", "s2_y", "s2_z"})
-
-_EQUATORIAL_SKY_PARAMS = frozenset({"ra", "dec"})
-_DETECTOR_SKY_PARAMS = frozenset({"azimuth", "zenith"})
 
 
 def infer_sample_transforms(
@@ -105,11 +97,10 @@ def infer_sample_transforms(
             else sampling_cfg.time_frame
         )
         ifo_for_time = next((ifo for ifo in ifos if ifo.name == ifo_name), None)
-        if ifo_for_time is None:
-            raise ValueError(
-                f"[sampling] time_frame={sampling_cfg.time_frame!r} is not in the IFO list "
-                f"{[i.name for i in ifos]}"
-            )
+        assert ifo_for_time is not None, (
+            f"[sampling] time_frame={sampling_cfg.time_frame!r} is not in the detector list "
+            f"{[i.name for i in ifos]}"
+        )
         sample_transforms.append(
             GeocentricArrivalTimeToDetectorArrivalTimeTransform(
                 trigger_time, ifo_for_time
@@ -128,11 +119,10 @@ def infer_sample_transforms(
     has_equatorial_sky = _EQUATORIAL_SKY_PARAMS <= prior_params
 
     if has_equatorial_sky and sampling_cfg.sky_frame == "detector":
-        if len(ifos) < 2:
-            raise ValueError(
-                "SkyFrameToDetectorFrameSkyPositionTransform requires at least 2 IFOs; "
-                f"got {[i.name for i in ifos]}"
-            )
+        assert len(ifos) >= 2, (
+            "SkyFrameToDetectorFrameSkyPositionTransform requires at least 2 detectors; "
+            f"got {[i.name for i in ifos]}"
+        )
         sample_transforms.append(
             SkyFrameToDetectorFrameSkyPositionTransform(trigger_time, ifos)
         )
@@ -140,8 +130,7 @@ def infer_sample_transforms(
 
     # --- Unit-cube transforms (NS-AW) -------------------------------------
     if unit_cube:
-        if prior_cfg is None:
-            raise ValueError("prior_cfg must be supplied when unit_cube=True")
+        assert prior_cfg is not None, "prior_cfg must be supplied when unit_cube=True"
         sample_transforms.extend(
             _build_unit_cube_transforms(prior_params, prior_cfg, sampling_cfg)
         )
@@ -206,10 +195,9 @@ def infer_likelihood_transforms(
 
     # azimuth/zenith directly in prior (no sky sample transform) → ra/dec
     if has_detector_sky and not has_equatorial_sky:
-        if len(ifos) < 2:
-            raise ValueError(
-                "Detector-frame sky prior requires at least 2 IFOs for the reverse transform."
-            )
+        assert len(ifos) >= 2, (
+            "Detector-frame sky prior requires at least 2 detectors for the reverse transform."
+        )
         t_sky = SkyFrameToDetectorFrameSkyPositionTransform(trigger_time, ifos)
         likelihood_transforms.append(reverse_bijective_transform(t_sky))
         logger.debug(
@@ -225,11 +213,10 @@ def infer_likelihood_transforms(
             ifo_for_time = next(
                 (ifo for ifo in ifos if ifo.name == sampling_cfg.time_frame), None
             )
-            if ifo_for_time is None:
-                raise ValueError(
-                    f"[sampling] time_frame={sampling_cfg.time_frame!r} is not in the IFO list "
-                    f"{[i.name for i in ifos]}"
-                )
+            assert ifo_for_time is not None, (
+                f"[sampling] time_frame={sampling_cfg.time_frame!r} is not in the detector list "
+                f"{[i.name for i in ifos]}"
+            )
         t_time = GeocentricArrivalTimeToDetectorArrivalTimeTransform(
             trigger_time, ifo_for_time
         )
@@ -247,76 +234,6 @@ def infer_likelihood_transforms(
         ],
     )
     return likelihood_transforms
-
-
-def validate_config(prior_params: frozenset[str], sampling_cfg: SamplingConfig) -> None:
-    """Raise ValueError for any invalid prior/sampling configuration combination."""
-
-    # Spin group mutual exclusivity
-    has_j_frame = bool(prior_params & _J_FRAME_SPIN_PARAMS)
-    has_sphere_spin = any(
-        all(f"{label}_{s}" in prior_params for s in ("mag", "theta", "phi"))
-        for label in _SPHERE_SPIN_LABELS
-    )
-    has_cartesian_spin = bool(prior_params & _CARTESIAN_SPIN_PARAMS)
-
-    active_spin_groups = sum([has_j_frame, has_sphere_spin, has_cartesian_spin])
-    if active_spin_groups > 1:
-        raise ValueError(
-            "Spin parametrizations are mutually exclusive. "
-            "Found more than one of: J-frame angles, spherical per-spin, Cartesian/aligned spins. "
-            f"Prior parameters: {sorted(prior_params)}"
-        )
-
-    if has_j_frame and "iota" in prior_params:
-        raise ValueError(
-            "J-frame spin angles produce 'iota' — 'iota' must not also appear in [prior]."
-        )
-
-    if has_j_frame:
-        missing_j = _J_FRAME_SPIN_PARAMS - prior_params
-        if missing_j:
-            raise ValueError(
-                f"J-frame spin parametrization requires all 7 parameters; "
-                f"missing from [prior]: {sorted(missing_j)}"
-            )
-        missing_mass = {"M_c", "q"} - prior_params
-        if missing_mass:
-            raise ValueError(
-                f"SpinAnglesToCartesianSpinTransform requires {missing_mass} in [prior] "
-                "as conditioning parameters."
-            )
-
-    # Sky group mutual exclusivity
-    has_equatorial_sky = bool(prior_params & _EQUATORIAL_SKY_PARAMS)
-    has_detector_sky = bool(prior_params & _DETECTOR_SKY_PARAMS)
-    if has_equatorial_sky and has_detector_sky:
-        raise ValueError(
-            "Sky parametrizations are mutually exclusive: "
-            "cannot have both ra/dec and azimuth/zenith in [prior]."
-        )
-
-    # Time group mutual exclusivity
-    has_geocentric_time = "t_c" in prior_params
-    has_detector_time = "t_det" in prior_params
-    if has_geocentric_time and has_detector_time:
-        raise ValueError(
-            "Time parametrizations are mutually exclusive: "
-            "cannot have both t_c and t_det in [prior]."
-        )
-
-    # Prior/sampling consistency
-    if has_detector_time and sampling_cfg.time_frame == "geocentric":
-        raise ValueError(
-            "t_det is in [prior] but time_frame='geocentric' requests geocentric-time sampling. "
-            "Either remove t_det from [prior] and use t_c, or set time_frame to a detector name."
-        )
-    if has_detector_sky and sampling_cfg.sky_frame == "geocentric":
-        raise ValueError(
-            "azimuth/zenith are in [prior] but sky_frame='geocentric' requests equatorial-sky "
-            "sampling. Either remove azimuth/zenith from [prior] and use ra/dec, or set "
-            "sky_frame='detector'."
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -448,10 +365,78 @@ def _unit_cube_for_spec(name: str, spec) -> list:
                 )
             )
         ]
-    if isinstance(spec, (GaussianSpec, RayleighSpec)):
-        raise ValueError(
-            f"Prior type '{type(spec).__name__}' for parameter '{name}' has infinite "
-            "support and cannot be automatically mapped to [0, 1] for NS-AW. "
-            "Use a bounded prior (uniform, sine, cosine, power_law) instead."
+    assert not isinstance(spec, (GaussianSpec, RayleighSpec)), (
+        f"Prior type '{type(spec).__name__}' for parameter '{name}' has infinite "
+        "support and cannot be automatically mapped to [0, 1] for NS-AW. "
+        "Use a bounded prior (uniform, sine, cosine, power_law) instead."
+    )
+    assert False, f"Unknown prior spec type for '{name}': {type(spec)}"
+
+
+# ---------------------------------------------------------------------------
+# Parameter-space conversion utility
+# ---------------------------------------------------------------------------
+
+
+def to_likelihood_space(
+    params: dict[str, float],
+    waveform_f_ref: float,
+    trigger_time: Optional[float] = None,
+    ifos: Optional[list[GroundBased2G]] = None,
+    time_frame: Optional[str] = None,
+) -> dict[str, float]:
+    """Convert injection/reference parameters to likelihood space if needed.
+
+    Handles: q→eta, J-frame spins→Cartesian, spherical spins→Cartesian,
+    azimuth/zenith→ra/dec, t_det→t_c.
+
+    The detector-frame conversions (azimuth/zenith and t_det) require
+    ``trigger_time`` and ``ifos`` to be supplied.  These parameters are valid
+    when the prior is parametrized in detector frame (e.g. ``azimuth``,
+    ``zenith``, or ``t_det`` appear in ``[prior]``).
+
+    ``time_frame`` mirrors ``[sampling].time_frame`` and selects which detector is
+    used for the ``t_det`` ↔ ``t_c`` conversion.  Pass the same value that is
+    used in the sampling config to guarantee consistency with the actual
+    likelihood transforms.
+    """
+    p = {k: jnp.float64(v) for k, v in params.items()}
+
+    # azimuth/zenith → ra/dec (must come before t_det conversion, which needs ra/dec)
+    if "azimuth" in p or "zenith" in p:
+        assert ifos is not None, (
+            "detectors are required to convert azimuth/zenith to ra/dec"
         )
-    raise ValueError(f"Unknown prior spec type for '{name}': {type(spec)}")
+        t_sky = SkyFrameToDetectorFrameSkyPositionTransform(trigger_time, ifos)
+        p = dict(t_sky.backward(p))
+
+    # t_det → t_c (needs ra/dec as conditioning parameters)
+    if "t_det" in p:
+        assert ifos is not None, "detectors are required to convert t_det to t_c"
+        if time_frame in ("detector", "geocentric"):
+            ifo_for_time = ifos[0]
+        else:
+            ifo_for_time = next(
+                (ifo for ifo in ifos if ifo.name == time_frame), ifos[0]
+            )
+        t_time = GeocentricArrivalTimeToDetectorArrivalTimeTransform(
+            trigger_time, ifo_for_time
+        )
+        p = dict(t_time.backward(p))
+
+    # J-frame spins → Cartesian + iota
+    if _J_FRAME_SPIN_PARAMS <= p.keys():
+        t = SpinAnglesToCartesianSpinTransform(freq_ref=waveform_f_ref)
+        p = dict(t.forward(p))
+
+    # Spherical per-spin → Cartesian
+    for label in ("s1", "s2"):
+        if {f"{label}_mag", f"{label}_theta", f"{label}_phi"} <= p.keys():
+            t = SphereSpinToCartesianSpinTransform(label)
+            p = dict(t.forward(p))
+
+    # q → eta
+    if "q" in p and "eta" not in p:
+        p = dict(MassRatioToSymmetricMassRatioTransform.forward(p))
+
+    return {k: float(v) for k, v in p.items()}

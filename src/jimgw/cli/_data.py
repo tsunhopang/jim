@@ -1,21 +1,15 @@
 import logging
 from typing import assert_never
 
-import jax.numpy as jnp
-
 from jimgw.cli._config import (
     DataConfig,
     FileDataConfig,
     GWOSCDataConfig,
     InjectionDataConfig,
 )
+from jimgw.cli._transforms import to_likelihood_space
 from jimgw.core.single_event.data import Data, PowerSpectrum
 from jimgw.core.single_event.detector import GroundBased2G, get_detector_preset
-from jimgw.core.single_event.transforms import (
-    MassRatioToSymmetricMassRatioTransform,
-    SpinAnglesToCartesianSpinTransform,
-    SphereSpinToCartesianSpinTransform,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +19,7 @@ def build_data(
     f_min: float,
     f_max: float,
     waveform=None,
+    time_frame: str = "detector",
 ) -> list[GroundBased2G]:
     """Construct a list of detectors populated with strain data and PSDs.
 
@@ -32,17 +27,13 @@ def build_data(
     """
     preset = get_detector_preset()
 
-    if not data_cfg.ifos:
-        raise ValueError("data.ifos must be a non-empty list")
-
-    unknown = [ifo for ifo in data_cfg.ifos if ifo not in preset]
-    if unknown:
-        raise ValueError(
-            f"Unknown IFO name(s): {unknown}. Supported: {sorted(preset.keys())}"
-        )
+    unknown = [d for d in data_cfg.detectors if d not in preset]
+    assert unknown == [], (
+        f"Unknown detector name(s): {unknown}. Supported: {sorted(preset.keys())}"
+    )
 
     ifos: list[GroundBased2G] = []
-    for name in data_cfg.ifos:
+    for name in data_cfg.detectors:
         val = preset[name]
         if isinstance(val, list):
             ifos.extend(val)
@@ -52,7 +43,9 @@ def build_data(
     if isinstance(data_cfg, GWOSCDataConfig):
         _load_gwosc(ifos, data_cfg)
     elif isinstance(data_cfg, InjectionDataConfig):
-        _load_injection(ifos, data_cfg, waveform, f_min=f_min, f_max=f_max)
+        _load_injection(
+            ifos, data_cfg, waveform, f_min=f_min, f_max=f_max, time_frame=time_frame
+        )
     elif isinstance(data_cfg, FileDataConfig):
         _load_files(ifos, data_cfg)
     else:
@@ -89,52 +82,6 @@ def _load_gwosc(ifos: list[GroundBased2G], cfg: GWOSCDataConfig) -> None:
         ifo.set_psd(psd_data.to_psd(nperseg=nperseg))
 
 
-def to_likelihood_space(
-    params: dict[str, float],
-    waveform_f_ref: float,
-) -> dict[str, float]:
-    """Convert injection/reference parameters to likelihood space if needed.
-
-    Handles: q→eta, J-frame spins→Cartesian, spherical spins→Cartesian.
-
-    Raises ``ValueError`` if sampling-space-only parameters (``t_det``,
-    ``azimuth``, ``zenith``) are present — use ``t_c``, ``ra``, ``dec``
-    instead.
-    """
-    if "t_det" in params:
-        raise ValueError(
-            "injection_parameters contains 't_det', which is a sampling-space "
-            "parameter tied to a specific detector. Use 't_c' (geocentric arrival "
-            "time) instead."
-        )
-    if "azimuth" in params or "zenith" in params:
-        raise ValueError(
-            "injection_parameters contains 'azimuth'/'zenith', which are "
-            "sampling-space parameters that depend on the detector network "
-            "orientation. Use 'ra' and 'dec' instead."
-        )
-
-    p = {k: jnp.float64(v) for k, v in params.items()}
-
-    # J-frame spins → Cartesian + iota
-    _J_FRAME = {"theta_jn", "phi_jl", "tilt_1", "tilt_2", "phi_12", "a_1", "a_2"}
-    if _J_FRAME <= p.keys():
-        t = SpinAnglesToCartesianSpinTransform(freq_ref=waveform_f_ref)
-        p = dict(t.forward(p))
-
-    # Spherical per-spin → Cartesian
-    for label in ("s1", "s2"):
-        if {f"{label}_mag", f"{label}_theta", f"{label}_phi"} <= p.keys():
-            t = SphereSpinToCartesianSpinTransform(label)
-            p = dict(t.forward(p))
-
-    # q → eta
-    if "q" in p and "eta" not in p:
-        p = dict(MassRatioToSymmetricMassRatioTransform.forward(p))
-
-    return {k: float(v) for k, v in p.items()}
-
-
 def _load_injection(
     ifos: list[GroundBased2G],
     cfg: InjectionDataConfig,
@@ -142,15 +89,18 @@ def _load_injection(
     *,
     f_min: float,
     f_max: float,
+    time_frame: str = "detector",
 ) -> None:
-    if waveform is None:
-        raise ValueError(
-            "waveform is required for injection data — build it before calling build_data."
-        )
+    assert waveform is not None, (
+        "waveform is required for injection data — build it before calling build_data."
+    )
 
     parameters = to_likelihood_space(
         cfg.injection_parameters,
         waveform_f_ref=waveform.f_ref,
+        trigger_time=cfg.trigger_time,
+        ifos=ifos,
+        time_frame=time_frame,
     )
 
     for ifo in ifos:
@@ -175,10 +125,8 @@ def _load_files(ifos: list[GroundBased2G], cfg: FileDataConfig) -> None:
         strain_path = cfg.strain_files.get(ifo.name)
         psd_path = cfg.psd_files.get(ifo.name)
 
-        if strain_path is None:
-            raise ValueError(f"No strain file specified for {ifo.name}")
-        if psd_path is None:
-            raise ValueError(f"No PSD file specified for {ifo.name}")
+        assert strain_path is not None, f"No strain file specified for {ifo.name}"
+        assert psd_path is not None, f"No PSD file specified for {ifo.name}"
 
         logger.info("Loading %s strain from %s", ifo.name, strain_path)
         ifo.set_data(Data.from_file(str(strain_path)))

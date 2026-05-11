@@ -86,21 +86,14 @@ def adapt_prior_for_ns_time(
     has_t_c = "t_c" in prior_cfg.root
     has_t_det = "t_det" in prior_cfg.root
 
-    if has_t_c and has_t_det:
-        raise ValueError(
-            "NS-AW sampler: both 't_c' and 't_det' appear in [prior]. "
-            "These are mutually exclusive — remove one before running."
-        )
-
     # Case 2: t_det in prior + geocentric sampling → adapt to t_c prior.
     if has_t_det and sampling_cfg.time_frame == "geocentric":
         t_det_spec = prior_cfg.root["t_det"]
-        if not isinstance(t_det_spec, UniformSpec):
-            raise ValueError(
-                "NS-AW sampler: the 't_det' prior must be 'uniform' for automatic "
-                "conversion to 't_c'. Either use a uniform t_det prior or replace "
-                "'t_det' with 't_c' in [prior] with relative-offset bounds."
-            )
+        assert isinstance(t_det_spec, UniformSpec), (
+            "NS-AW sampler: the 't_det' prior must be 'uniform' for automatic "
+            "conversion to 't_c'. Either use a uniform t_det prior or replace "
+            "'t_det' with 't_c' in [prior]."
+        )
         logger.warning(
             "NS-AW sampler: replacing t_det ~ Uniform(%.4f, %.4f) in [prior] with "
             "t_c ~ Uniform(%.4f, %.4f) (same relative-offset bounds). "
@@ -121,13 +114,12 @@ def adapt_prior_for_ns_time(
 
     # Case 1: t_c in prior + detector time_frame → adapt to t_det prior.
     t_c_spec = prior_cfg.root["t_c"]
-    if not isinstance(t_c_spec, UniformSpec):
-        raise ValueError(
-            "NS-AW sampler: the 't_c' prior must be 'uniform' for automatic "
-            "conversion to 't_det'. Either use a uniform t_c prior, set "
-            "[sampling] time_frame = 'geocentric' to sample t_c directly, or "
-            "replace 't_c' with 't_det' in [prior] with relative-offset bounds."
-        )
+    assert isinstance(t_c_spec, UniformSpec), (
+        "NS-AW sampler: the 't_c' prior must be 'uniform' for automatic "
+        "conversion to 't_det'. Either use a uniform t_c prior, set "
+        "[sampling] time_frame = 'geocentric' to sample t_c directly, or "
+        "replace 't_c' with 't_det' in [prior]."
+    )
 
     logger.warning(
         "NS-AW sampler: replacing t_c ~ Uniform(%.4f, %.4f) in [prior] with "

@@ -146,7 +146,6 @@ def run(
     from jimgw.cli._transforms import (
         infer_likelihood_transforms,
         infer_sample_transforms,
-        validate_config,
     )
     from jimgw.cli._waveform import build_waveform
 
@@ -161,6 +160,7 @@ def run(
         f_min=cfg.likelihood.f_min,
         f_max=cfg.likelihood.f_max,
         waveform=waveform,
+        time_frame=cfg.sampling.time_frame,
     )
 
     # NS-AW requires all sampling-space parameters in [0, 1].
@@ -176,7 +176,6 @@ def run(
 
     # Stage 5: transform inference
     prior_params = frozenset(prior.parameter_names)
-    validate_config(prior_params, cfg.sampling)
     ns_aw = cfg.sampler.type == "blackjax-ns-aw"
     sample_transforms = infer_sample_transforms(
         prior_params,
@@ -204,6 +203,7 @@ def run(
         prior=prior,
         likelihood_transforms=likelihood_transforms,
         data_cfg=cfg.data,
+        time_frame=cfg.sampling.time_frame,
     )
 
     # Stage 7: build Jim + run sampler

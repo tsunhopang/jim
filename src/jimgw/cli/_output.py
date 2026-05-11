@@ -2,9 +2,13 @@ import json
 import logging
 import shutil
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import tomli_w
+import jax.numpy as jnp
+
+from jimgw.cli._transforms import to_likelihood_space
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +66,67 @@ def write_outputs(jim, cfg) -> None:
 
     # Corner plot
     if cfg.output.save_corner:
-        _save_corner(out_dir, samples, cfg.output.corner_parameters)
+        truths = (
+            _injection_truths_in_prior_space(
+                cfg.data.injection_parameters,
+                jim.likelihood_transforms,
+                cfg.waveform.f_ref,
+                trigger_time=cfg.data.trigger_time,
+                ifos=list(jim.likelihood.detectors),
+                time_frame=cfg.sampling.time_frame,
+            )
+            if cfg.data.type == "injection"
+            else None
+        )
+        _save_corner(out_dir, samples, cfg.output.corner_parameters, truths)
 
 
-def _save_corner(out_dir: Path, samples: dict, param_names: list[str] | None) -> None:
+def _injection_truths_in_prior_space(
+    injection_parameters: dict[str, float],
+    likelihood_transforms,
+    waveform_f_ref: float,
+    trigger_time: float | None = None,
+    ifos=None,
+    time_frame: str = "detector",
+) -> Optional[dict[str, float]]:
+    """Convert injection parameters to prior space for corner plot truth markers.
+
+    injection_parameters may be in any supported parametrization (J-frame spins,
+    spherical spins, q/eta, azimuth/zenith, t_det, etc.).  We convert to
+    likelihood space first, then reverse the likelihood transforms to land in
+    prior space — the same space that jim.get_samples() returns.
+    """
+    p: dict = to_likelihood_space(
+        injection_parameters,
+        waveform_f_ref,
+        trigger_time=trigger_time,
+        ifos=ifos,
+        time_frame=time_frame,
+    )
+    p = {k: jnp.float64(v) for k, v in p.items()}
+
+    for transform in reversed(likelihood_transforms):
+        # All currently supported likelihood transforms have a backward method
+        # but this may not always be the case.
+        if hasattr(transform, "backward"):
+            p = transform.backward(p)
+        else:
+            logger.warning(
+                "Likelihood transform %s does not have a backward method — "
+                "cannot convert truths to prior space",
+                transform,
+            )
+            return None
+
+    return {k: float(v) for k, v in p.items()}
+
+
+def _save_corner(
+    out_dir: Path,
+    samples: dict,
+    param_names: list[str] | None,
+    truths: Optional[dict[str, float]] = None,
+) -> None:
     try:
         import corner  # type: ignore[import]
         import matplotlib.pyplot as plt  # type: ignore[import]
@@ -84,7 +145,9 @@ def _save_corner(out_dir: Path, samples: dict, param_names: list[str] | None) ->
         labels = list(samples.keys())
         data = np.column_stack([np.asarray(samples[p]) for p in labels])
 
-    fig = corner.corner(data, labels=labels)
+    truth_values = [truths.get(p) for p in labels] if truths else None
+
+    fig = corner.corner(data, labels=labels, truths=truth_values)
     corner_path = out_dir / "corner.png"
     fig.savefig(corner_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
