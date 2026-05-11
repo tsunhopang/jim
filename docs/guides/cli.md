@@ -189,9 +189,9 @@ Optional section that controls the coordinate system the sampler explores. The C
 | `f_max` | float | — | Upper frequency cutoff in Hz |
 | `fixed_parameters` | dict[str, float] | `{}` | Parameters held fixed at these values and excluded from sampling |
 | `phase_marginalization` | bool | `false` | Analytically marginalise over coalescence phase |
-| `time_marginalization` | table | `null` | Analytically marginalise over coalescence time (see below) |
-| `distance_marginalization` | table | `null` | Analytically marginalise over luminosity distance (see below) |
-| `heterodyne` | table | `null` | Use the relative-binning likelihood for a large speedup (see below) |
+| `time_marginalization` | table | — | Optional — Analytically marginalise over coalescence time (see below) |
+| `distance_marginalization` | table | — | Optional — Analytically marginalise over luminosity distance (see below) |
+| `heterodyne` | table | — | Optional — Use the relative-binning likelihood for a large speedup (see below) |
 
 ### `[likelihood.time_marginalization]`
 
@@ -205,7 +205,7 @@ tc_range = [-0.1, 0.1]  # seconds relative to trigger_time
 ```toml
 [likelihood.distance_marginalization]
 n_dist_points = 10000  # integration grid size
-ref_dist = null        # reference distance in Mpc; null = auto
+# ref_dist = 440.0     # optional: reference distance in Mpc; omit to auto-select
 
 [likelihood.distance_marginalization.distance_prior]
 d_L = { type = "power_law", min = 1.0, max = 2000.0, alpha = 2.0 }
@@ -262,7 +262,7 @@ The `type` field selects the backend. Each backend has its own set of tuning par
 | `local_thinning` | `1` | Keep every Nth local step |
 | `early_stopping` | `true` | Stop training when the loss plateaus |
 | `verbose` | `false` | Print sampler-level progress |
-| `parallel_tempering` | `null` | Set to `true` or a sub-table to enable parallel tempering |
+| `parallel_tempering` | disabled | Set to `true` to enable with defaults, or provide a dict for custom settings |
 
 Parallel-tempering sub-table:
 
@@ -279,12 +279,12 @@ n_tempered_steps = 5
 | --- | --- | --- |
 | `n_particles` | `2000` | Number of particles |
 | `n_mcmc_steps_per_dim` | `100` | MCMC steps per dimension per temperature |
-| `target_ess_fraction` | `0.9` | Target effective sample size as a fraction of `n_particles` |
-| `target_ess` | `null` | Absolute ESS target (alternative to `target_ess_fraction`) |
+| `target_ess_fraction` | `0.9` | Optional — target effective sample size as a fraction of `n_particles`; use instead of `target_ess`, not both |
+| `target_ess` | — | Optional — target absolute ESS count; use instead of `target_ess_fraction`, not both |
 | `initial_cov_scale` | `0.5` | Initial covariance scale factor |
 | `target_acceptance_rate` | `0.234` | Target MCMC acceptance rate |
 | `persistent_sampling` | `true` | Reuse particles across temperatures |
-| `temperature_ladder` | `null` | Fixed temperature schedule (overrides ESS-adaptive tempering) |
+| `temperature_ladder` | — | Optional — fixed list of temperatures from 0.0 to 1.0; omit to use adaptive tempering |
 
 ### `type = "blackjax-nss"`
 
@@ -318,7 +318,7 @@ Requires all sampling-space parameters to lie in $[0, 1]$. The CLI enforces this
 | `overwrite` | bool | `false` | Allow overwriting an existing output directory |
 | `save_corner` | bool | `false` | Save a corner plot (`corner.png`); requires the `corner` package |
 | `n_samples` | int | `0` | Number of posterior samples to save; `0` means save all |
-| `corner_parameters` | list[str] | `null` | Parameter names to include in the corner plot; `null` means all |
+| `corner_parameters` | list[str] | — | Optional — parameter names to include in the corner plot; default is all parameters |
 
 ### Output files
 
