@@ -26,7 +26,7 @@ approximant = "IMRPhenomXAS"
 f_ref = 20.0
 
 [prior]
-M_c     = { type = "uniform",   min = 10.0,  max = 80.0  }
+M_c     = { type = "uniform",   min = 20.0,  max = 40.0  }
 q       = { type = "uniform",   min = 0.125, max = 1.0   }
 s1_z    = { type = "uniform",   min = -0.99, max = 0.99  }
 s2_z    = { type = "uniform",   min = -0.99, max = 0.99  }
