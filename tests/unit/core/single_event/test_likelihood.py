@@ -6,6 +6,7 @@ from jimgw.core.single_event.likelihood import (
     ZeroLikelihood,
     TransientLikelihoodFD,
     HeterodynedTransientLikelihoodFD,
+    MultibandedTransientLikelihoodFD,
 )
 from jimgw.core.single_event.detector import get_H1, get_L1
 from jimgw.core.single_event.waveform import RippleIMRPhenomD
@@ -1713,3 +1714,150 @@ class TestCallableFixedParameters:
             f"Lambda ({result_lambda}) and transform.backward ({result_transform}) "
             "approaches must give the same likelihood"
         )
+
+
+class TestMultibandedTransientLikelihoodFD:
+    # ------------------------------------------------------------------
+    # Initialisation tests
+    # ------------------------------------------------------------------
+
+    def test_initialization(self, detectors_and_waveform):
+        ifos, waveform, fmin, fmax, gps = detectors_and_waveform
+        likelihood = MultibandedTransientLikelihoodFD(
+            detectors=ifos,
+            waveform=waveform,
+            reference_chirp_mass=20.0,
+            f_min=fmin,
+            f_max=fmax,
+            trigger_time=gps,
+        )
+        assert isinstance(likelihood, MultibandedTransientLikelihoodFD)
+        assert likelihood.trigger_time == gps
+        assert hasattr(likelihood, "gmst")
+        assert likelihood.reference_chirp_mass == 20.0
+
+    def test_band_setup(self, detectors_and_waveform):
+        """Check that multibanding precomputes all required arrays."""
+        ifos, waveform, fmin, fmax, gps = detectors_and_waveform
+        likelihood = MultibandedTransientLikelihoodFD(
+            detectors=ifos,
+            waveform=waveform,
+            reference_chirp_mass=20.0,
+            f_min=fmin,
+            f_max=fmax,
+            trigger_time=gps,
+        )
+        assert len(likelihood.unique_frequencies) > 0
+        assert len(likelihood.banded_frequency_points) > 0
+        assert len(likelihood.unique_frequencies) <= len(likelihood.banded_frequency_points)
+        for ifo in ifos:
+            assert ifo.name in likelihood.linear_coeffs
+            assert ifo.name in likelihood.quadratic_coeffs
+            assert len(likelihood.linear_coeffs[ifo.name]) == len(
+                likelihood.banded_frequency_points
+            )
+
+    def test_uninitialized_data_raises(self):
+        """Detectors without data must raise ValueError."""
+        gps = 1126259462.4
+        ifos = [get_H1(), get_L1()]
+        for ifo in ifos:
+            psd = PowerSpectrum.from_file(
+                str(FIXTURES_DIR / f"GW150914_psd_{ifo.name}.npz")
+            )
+            ifo.set_psd(psd)
+        waveform = RippleIMRPhenomD(f_ref=20.0)
+        with pytest.raises(ValueError, match="does not have initialized data"):
+            MultibandedTransientLikelihoodFD(
+                detectors=ifos,
+                waveform=waveform,
+                reference_chirp_mass=20.0,
+                f_min=20.0,
+                f_max=1024.0,
+                trigger_time=gps,
+            )
+
+    def test_uninitialized_psd_raises(self):
+        """Detectors without PSD must raise ValueError."""
+        gps = 1126259462.4
+        ifos = [get_H1(), get_L1()]
+        for ifo in ifos:
+            data = Data.from_file(str(FIXTURES_DIR / f"GW150914_strain_{ifo.name}.npz"))
+            ifo.set_data(data)
+        waveform = RippleIMRPhenomD(f_ref=20.0)
+        with pytest.raises(ValueError, match="does not have initialized PSD"):
+            MultibandedTransientLikelihoodFD(
+                detectors=ifos,
+                waveform=waveform,
+                reference_chirp_mass=20.0,
+                f_min=20.0,
+                f_max=1024.0,
+                trigger_time=gps,
+            )
+
+    # ------------------------------------------------------------------
+    # Evaluation tests
+    # ------------------------------------------------------------------
+
+    def test_evaluate_is_finite(self, detectors_and_waveform):
+        ifos, waveform, fmin, fmax, gps = detectors_and_waveform
+        likelihood = MultibandedTransientLikelihoodFD(
+            detectors=ifos,
+            waveform=waveform,
+            reference_chirp_mass=20.0,
+            f_min=fmin,
+            f_max=fmax,
+            trigger_time=gps,
+        )
+        params = example_params()
+        result = likelihood.evaluate(params, {})
+        assert jnp.isfinite(result), "Multibanded log-likelihood should be finite"
+
+    def test_evaluate_jit_matches(self, detectors_and_waveform):
+        ifos, waveform, fmin, fmax, gps = detectors_and_waveform
+        likelihood = MultibandedTransientLikelihoodFD(
+            detectors=ifos,
+            waveform=waveform,
+            reference_chirp_mass=20.0,
+            f_min=fmin,
+            f_max=fmax,
+            trigger_time=gps,
+        )
+        params = example_params()
+        result = likelihood.evaluate(params, {})
+        result_jit = jax.jit(likelihood.evaluate)(params, {})
+        assert jnp.allclose(result, result_jit), "JIT and eager results should match"
+
+    def test_evaluate_does_not_mutate_params(self, detectors_and_waveform):
+        ifos, waveform, fmin, fmax, gps = detectors_and_waveform
+        likelihood = MultibandedTransientLikelihoodFD(
+            detectors=ifos,
+            waveform=waveform,
+            reference_chirp_mass=20.0,
+            f_min=fmin,
+            f_max=fmax,
+            trigger_time=gps,
+        )
+        params = example_params()
+        params_copy = dict(params)
+        likelihood.evaluate(params, {})
+        assert set(params.keys()) == set(params_copy.keys()), (
+            "evaluate() must not mutate the input params dict"
+        )
+
+    def test_different_accuracy_factors(self, detectors_and_waveform):
+        """Varying accuracy_factor must still produce finite results."""
+        ifos, waveform, fmin, fmax, gps = detectors_and_waveform
+        params = example_params()
+        for acc in [1.0, 5.0, 10.0]:
+            likelihood = MultibandedTransientLikelihoodFD(
+                detectors=ifos,
+                waveform=waveform,
+                reference_chirp_mass=20.0,
+                f_min=fmin,
+                f_max=fmax,
+                trigger_time=gps,
+                accuracy_factor=acc,
+            )
+            result = likelihood.evaluate(params, {})
+            assert jnp.isfinite(result), f"Result not finite for accuracy_factor={acc}"
