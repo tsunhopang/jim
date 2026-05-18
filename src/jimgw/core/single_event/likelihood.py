@@ -1453,28 +1453,25 @@ class MultibandedTransientLikelihoodFD(SingleEventLikelihood):
         )
         decrease_stop = max(0, min(length, int(jnp.ceil(fnext / delta_f)) - start_idx))
 
-        # Unity region
-        window[unity_start:decrease_start] = 1.0
+        window = window.at[unity_start:decrease_start].set(1.0)
 
-        # Increasing taper (avoid overflow from vanishing dfnow)
         if increase_start < unity_start and dfnow > 0:
             frequencies = (
                 jnp.arange(increase_start, unity_start) + start_idx
             ) * delta_f
-            window[increase_start:unity_start] = (
-                1.0 + jnp.cos(jnp.pi * (frequencies - f_now) / dfnow)
-            ) / 2.0
+            window = window.at[increase_start:unity_start].set(
+                (1.0 + jnp.cos(jnp.pi * (frequencies - f_now) / dfnow)) / 2.0
+            )
 
-        # Decreasing taper
         if decrease_start < decrease_stop:
             frequencies = (
                 jnp.arange(decrease_start, decrease_stop) + start_idx
             ) * delta_f
-            window[decrease_start:decrease_stop] = (
-                1.0 - jnp.cos(jnp.pi * (frequencies - fnext) / dfnext)
-            ) / 2.0
+            window = window.at[decrease_start:decrease_stop].set(
+                (1.0 - jnp.cos(jnp.pi * (frequencies - fnext) / dfnext)) / 2.0
+            )
 
-        return jnp.array(window)
+        return window
 
     def _setup_linear_coefficients(self) -> None:
         """Pre-compute coefficients for (d|h) inner product.
@@ -1502,12 +1499,11 @@ class MultibandedTransientLikelihoodFD(SingleEventLikelihood):
             psd = jnp.array(detector.psd.values)
             freq_mask = jnp.array(detector.frequency_mask)
 
-            fddata = jnp.zeros(N // 2 + 1, dtype=complex)
             valid_len = min(len(data_fd), N // 2 + 1)
             mask_valid = freq_mask[:valid_len]
-            fddata[:valid_len][mask_valid] = (
-                data_fd[:valid_len][mask_valid] / psd[:valid_len][mask_valid]
-            )
+            safe_psd = jnp.where(mask_valid, psd[:valid_len], 1.0)
+            values = jnp.where(mask_valid, data_fd[:valid_len] / safe_psd, 0.0)
+            fddata = jnp.zeros(N // 2 + 1, dtype=complex).at[:valid_len].set(values)
 
             band_coeffs = []
 
@@ -1519,8 +1515,7 @@ class MultibandedTransientLikelihoodFD(SingleEventLikelihood):
 
                 window = self._get_window_sequence(1.0 / db, Ks, Ke - Ks + 1, b)
 
-                fddata_band = jnp.copy(fddata[: Nb // 2 + 1])
-                fddata_band[-1] = 0.0
+                fddata_band = fddata[: Nb // 2 + 1].at[-1].set(0.0)
 
                 tddata = jnp.fft.irfft(fddata_band)[-Mb:]
                 fddata_shortened = jnp.fft.rfft(tddata)[Ks : Ke + 1]
@@ -1575,12 +1570,12 @@ class MultibandedTransientLikelihoodFD(SingleEventLikelihood):
                 end_idx_orig = min(start_idx_orig + len(window) - 1, len(psd) - 1)
                 valid_len = end_idx_orig - start_idx_orig + 1
 
-                window_over_psd = jnp.zeros(valid_len)
                 local_mask = freq_mask[start_idx_orig : end_idx_orig + 1]
-                window_over_psd[local_mask] = (
-                    1.0 / psd[start_idx_orig : end_idx_orig + 1][local_mask]
+                psd_slice = psd[start_idx_orig : end_idx_orig + 1]
+                safe_psd = jnp.where(local_mask, psd_slice, 1.0)
+                window_over_psd = (
+                    jnp.where(local_mask, 1.0 / safe_psd, 0.0) * window[:valid_len]
                 )
-                window_over_psd *= window[:valid_len]
 
                 # Compute coefficients using linear interpolation
                 n_coeff = len(banded_freqs)
