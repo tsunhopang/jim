@@ -133,8 +133,7 @@ def build_likelihood(
         mb_time_offset = mb.time_offset
         mb_delta_f_end = mb.delta_f_end
         if (mb_time_offset is None or mb_delta_f_end is None) and (
-            "t_c" not in prior.parameter_names
-            and "t_det" in prior.parameter_names
+            "t_c" not in prior.parameter_names and "t_det" in prior.parameter_names
         ):
             tdet_comp = next(
                 (
@@ -154,7 +153,9 @@ def build_likelihood(
                         "time_offset inferred from t_det prior: %.4f s", mb_time_offset
                     )
                 if mb_delta_f_end is None:
-                    mb_delta_f_end = 100.0 / (t_end - float(getattr(tdet_comp, "xmax")) - s)
+                    mb_delta_f_end = 100.0 / (
+                        t_end - float(getattr(tdet_comp, "xmax")) - s
+                    )
                     logger.info(
                         "delta_f_end inferred from t_det prior: %.4f Hz", mb_delta_f_end
                     )
