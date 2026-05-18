@@ -153,9 +153,15 @@ def build_likelihood(
                         "time_offset inferred from t_det prior: %.4f s", mb_time_offset
                     )
                 if mb_delta_f_end is None:
-                    mb_delta_f_end = 100.0 / (
-                        t_end - float(getattr(tdet_comp, "xmax")) - s
-                    )
+                    xmax = float(getattr(tdet_comp, "xmax"))
+                    denom = t_end - xmax - s
+                    if denom <= 0:
+                        raise ValueError(
+                            f"Cannot infer delta_f_end from t_det prior: "
+                            f"t_end - xmax - s = {t_end:.4f} - {xmax:.4f} - {s:.6f} = {denom:.6f} <= 0. "
+                            "Check that the t_det prior upper bound is well within the data segment."
+                        )
+                    mb_delta_f_end = 100.0 / denom
                     logger.info(
                         "delta_f_end inferred from t_det prior: %.4f Hz", mb_delta_f_end
                     )

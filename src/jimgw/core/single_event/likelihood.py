@@ -1181,8 +1181,16 @@ class MultibandedTransientLikelihoodFD(SingleEventLikelihood):
                 data = detectors[0].data
                 t_end = float(data.start_time) + float(data.duration) - trigger_time
                 s = EARTH_RADIUS_LIGHT_S
+                tc_max = float(tc_prior.xmax)
+                denom = t_end - tc_max - s
+                if denom <= 0:
+                    raise ValueError(
+                        f"Cannot infer delta_f_end from t_c prior: "
+                        f"t_end - xmax - s = {t_end:.4f} - {tc_max:.4f} - {s:.6f} = {denom:.6f} <= 0. "
+                        "Check that the t_c prior upper bound is well within the data segment."
+                    )
                 inferred_to = t_end - float(tc_prior.xmin) + s
-                inferred_dfe = 100.0 / (t_end - float(tc_prior.xmax) - s)
+                inferred_dfe = 100.0 / denom
 
         if time_offset is None:
             if inferred_to is not None:
