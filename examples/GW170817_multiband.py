@@ -123,7 +123,7 @@ jim = Jim(
         n_global_steps=1000,
         n_training_loops=50,
         n_production_loops=10,
-        n_NFproposal_batch_size=100,
+        n_NFproposal_batch_size=64,
         global_thinning=100,
         verbose=True,
     ),
