@@ -236,8 +236,8 @@ class GroundBased2G(Detector):
     yarm_tilt: Float = 0
     elevation: Float = 0
 
-    optimal_snr: Float = 0
-    match_filtered_snr: Complex = 0 + 0j
+    optimal_snr: Optional[Float] = None
+    match_filtered_snr: Optional[Complex] = None
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"
