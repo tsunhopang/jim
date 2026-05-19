@@ -36,7 +36,7 @@ wheels = [
 
 [[package]]
 name = "anesthetic"
-version = "2.14.4"
+version = "2.14.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "matplotlib" },
@@ -44,9 +44,9 @@ dependencies = [
     { name = "pandas" },
     { name = "scipy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7b/dc/6ca15823c29f27e7207bc0e9dc32b20eafda39dd79dc37f3d4dcd9b8dc35/anesthetic-2.14.4.tar.gz", hash = "sha256:d16008eedea2b62318735d30562264053c9a08e796813031100215893484cd19", size = 123004, upload-time = "2026-04-20T12:44:48.516Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/26/bf/314dcb7ceb81175f1a2d06721446ae2205d420d477d99727ceb24be5f9e1/anesthetic-2.14.5.tar.gz", hash = "sha256:92641de7e16fc0d29c5947a9453243606e02d1fe98c0fc65d5741ac64910141b", size = 123146, upload-time = "2026-05-19T12:01:42.869Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4c/a9/8f2e5efd54f098b04fbc3c85beca3c380e019740a7129c591be0161bfdc3/anesthetic-2.14.4-py3-none-any.whl", hash = "sha256:c468f520d70dc546cb740e72db1badb7bc6f69fc08451203fd79c1bc70e24e42", size = 89133, upload-time = "2026-04-20T12:44:47.078Z" },
+    { url = "https://files.pythonhosted.org/packages/a6/fb/df1cc43891e14db1b710d28ce9e74cf88071682560f7a11f6818d5fb1f7b/anesthetic-2.14.5-py3-none-any.whl", hash = "sha256:1492fd092555f7ec1128419df288476eacace4de22cd3c5cec7a0c17d3cff238", size = 89126, upload-time = "2026-05-19T12:01:41.461Z" },
 ]
 
 [[package]]
