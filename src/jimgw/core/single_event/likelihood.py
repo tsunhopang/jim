@@ -91,7 +91,7 @@ class SingleEventLikelihood(LikelihoodBase):
         self.waveform = waveform
         self.fixed_parameters = fixed_parameters if fixed_parameters is not None else {}
 
-    def evaluate(self, params: dict[str, Float], data: dict) -> Float:
+    def evaluate(self, params: dict[str, Float]) -> Float:
         """Apply ``fixed_parameters`` overrides and evaluate the likelihood.
 
         Constants are injected directly; callables receive the current params
@@ -100,10 +100,10 @@ class SingleEventLikelihood(LikelihoodBase):
         """
         params = params.copy()
         apply_fixed_parameters(params, self.fixed_parameters)
-        return self._likelihood(params, data)
+        return self._likelihood(params)
 
     @abstractmethod
-    def _likelihood(self, params: dict[str, Float], data: dict) -> Float:
+    def _likelihood(self, params: dict[str, Float]) -> Float:
         """Core likelihood evaluation method to be implemented by subclasses."""
         raise NotImplementedError("Subclasses must implement this method.")
 
@@ -117,12 +117,11 @@ class ZeroLikelihood(LikelihoodBase):
     def __init__(self) -> None:
         pass
 
-    def evaluate(self, params: dict[str, Float], data: dict) -> Float:
+    def evaluate(self, params: dict[str, Float]) -> Float:
         """Return zero regardless of the parameters.
 
         Args:
             params (dict[str, Float]): Ignored.
-            data (dict): Ignored.
 
         Returns:
             Float: Always 0.0.
@@ -178,7 +177,7 @@ class TransientLikelihoodFD(SingleEventLikelihood):
         ...     phase_marginalization=True,
         ...     time_marginalization={"tc_range": (-0.1, 0.1)},
         ... )
-        >>> logL = likelihood.evaluate(params, data)
+        >>> logL = likelihood.evaluate(params)
     """
 
     def __init__(
@@ -286,7 +285,7 @@ class TransientLikelihoodFD(SingleEventLikelihood):
                 distance_marginalization.ref_dist,
             )
 
-    def evaluate(self, params: dict[str, Float], data: dict) -> Float:
+    def evaluate(self, params: dict[str, Float]) -> Float:
         params = params.copy()
         params["trigger_time"] = self.trigger_time
         params["gmst"] = self.gmst
@@ -297,9 +296,9 @@ class TransientLikelihoodFD(SingleEventLikelihood):
         if self.distance_marginalization:
             params["d_L"] = self.ref_dist
         apply_fixed_parameters(params, self.fixed_parameters)
-        return self._likelihood(params, data)
+        return self._likelihood(params)
 
-    def _likelihood(self, params: dict[str, Float], data: dict) -> Float:
+    def _likelihood(self, params: dict[str, Float]) -> Float:
         waveform_sky = self.waveform(self.frequencies, params)
 
         # --- choose accumulation type based on flags ---
@@ -727,16 +726,16 @@ class HeterodynedTransientLikelihoodFD(SingleEventLikelihood):
             self.B0_array[detector.name] = B0[mask_heterodyne_center]
             self.B1_array[detector.name] = B1[mask_heterodyne_center]
 
-    def evaluate(self, params: dict[str, Float], data: dict) -> Float:
+    def evaluate(self, params: dict[str, Float]) -> Float:
         params = params.copy()
         params["trigger_time"] = self.trigger_time
         params["gmst"] = self.gmst
         if self.phase_marginalization:
             params["phase_c"] = 0.0
         apply_fixed_parameters(params, self.fixed_parameters)
-        return self._likelihood(params, data)
+        return self._likelihood(params)
 
-    def _likelihood(self, params: dict[str, Float], data: dict) -> Float:
+    def _likelihood(self, params: dict[str, Float]) -> Float:
         frequencies_low = self.freq_grid_low
         frequencies_center = self.freq_grid_center
         log_likelihood = 0.0
@@ -913,7 +912,7 @@ class HeterodynedTransientLikelihoodFD(SingleEventLikelihood):
             named_params = apply_fixed_parameters(named_params, self.fixed_parameters)
             return jnp.where(
                 jnp.isfinite(prior_log_prob),
-                -full_likelihood.evaluate(named_params, {}),
+                -full_likelihood.evaluate(named_params),
                 jnp.inf,
             )
 
@@ -1673,15 +1672,13 @@ class MultibandedTransientLikelihoodFD(SingleEventLikelihood):
 
             self.quadratic_coeffs[detector.name] = jnp.concatenate(band_coeffs)
 
-    def evaluate(self, params: dict[str, Float], data: dict) -> Float:
+    def evaluate(self, params: dict[str, Float]) -> Float:
         """Evaluate the log-likelihood for given parameters.
 
         Parameters
         ----------
         params : dict[str, Float]
             Dictionary of model parameters.
-        data : dict
-            Data dictionary (not used, data stored in detectors).
 
         Returns
         -------
@@ -1692,17 +1689,15 @@ class MultibandedTransientLikelihoodFD(SingleEventLikelihood):
         params["trigger_time"] = self.trigger_time
         params["gmst"] = self.gmst
         apply_fixed_parameters(params, self.fixed_parameters)
-        return self._likelihood(params, data)
+        return self._likelihood(params)
 
-    def _likelihood(self, params: dict[str, Float], data: dict) -> Float:
+    def _likelihood(self, params: dict[str, Float]) -> Float:
         """Core likelihood evaluation using multi-banding.
 
         Parameters
         ----------
         params : dict[str, Float]
             Dictionary of model parameters.
-        data : dict
-            Data dictionary (not used).
 
         Returns
         -------

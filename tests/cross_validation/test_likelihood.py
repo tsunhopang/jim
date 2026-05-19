@@ -350,7 +350,7 @@ class TestTransientLikelihoodFD:
             f_min=F_MIN,
             f_max=F_MAX,
             trigger_time=GPS,
-        ).evaluate(setup["jim_params"].copy(), {})
+        ).evaluate(setup["jim_params"].copy())
 
         bilby_ll = bilby.gw.likelihood.GravitationalWaveTransient(
             interferometers=setup["bilby_ifos"],
@@ -393,7 +393,7 @@ class TestTransientLikelihoodFD:
             f_max=F_MAX,
             trigger_time=GPS,
             phase_marginalization=True,
-        ).evaluate(jim_params_ph0, {})
+        ).evaluate(jim_params_ph0)
 
         priors = bilby.core.prior.PriorDict()
         priors["phase"] = bilby.core.prior.Uniform(
@@ -444,7 +444,7 @@ class TestTransientLikelihoodFD:
             f_max=F_MAX,
             trigger_time=GPS,
             time_marginalization={"tc_range": tc_range},
-        ).evaluate(setup["jim_params"].copy(), {})
+        ).evaluate(setup["jim_params"].copy())
 
         priors = bilby.core.prior.PriorDict()
         priors["geocent_time"] = bilby.core.prior.Uniform(
@@ -498,7 +498,7 @@ class TestTransientLikelihoodFD:
                 "distance_prior": jim_distance_prior,
                 "n_dist_points": 10000,
             },
-        ).evaluate(setup["jim_params"].copy(), {})
+        ).evaluate(setup["jim_params"].copy())
 
         bilby_priors = bilby.core.prior.PriorDict()
         bilby_priors["luminosity_distance"] = bilby.core.prior.PowerLaw(
@@ -562,7 +562,7 @@ class TestTransientLikelihoodFD:
                 "distance_prior": jim_distance_prior,
                 "n_dist_points": 10000,
             },
-        ).evaluate(jim_params_ph0.copy(), {})
+        ).evaluate(jim_params_ph0.copy())
 
         bilby_priors = bilby.core.prior.PriorDict()
         bilby_priors["luminosity_distance"] = bilby.core.prior.PowerLaw(
@@ -626,7 +626,7 @@ class TestTransientLikelihoodFD:
             trigger_time=GPS,
             time_marginalization={"tc_range": tc_range},
             phase_marginalization=True,
-        ).evaluate(jim_params_ph0, {})
+        ).evaluate(jim_params_ph0)
 
         priors = bilby.core.prior.PriorDict()
         priors["geocent_time"] = bilby.core.prior.Uniform(
@@ -707,7 +707,7 @@ class TestHeterodynedTransientLikelihoodFD:
 
         jim_eval_params = bilby_to_jim_params(bilby_eval_params)
 
-        jim_ll = jim_likelihood.evaluate(jim_eval_params, {})
+        jim_ll = jim_likelihood.evaluate(jim_eval_params)
         bilby_ll = bilby_likelihood.log_likelihood_ratio(bilby_eval_params)
 
         print(f"\n[Heterodyned] jim={float(jim_ll):.4f}  bilby={float(bilby_ll):.4f}")
@@ -773,7 +773,7 @@ class TestHeterodynedTransientLikelihoodFD:
 
         jim_eval_params = bilby_to_jim_params(bilby_eval_params)
 
-        jim_ll = jim_likelihood.evaluate(jim_eval_params, {})
+        jim_ll = jim_likelihood.evaluate(jim_eval_params)
         bilby_ll = bilby_likelihood.log_likelihood_ratio(bilby_eval_params)
 
         print(
@@ -813,7 +813,7 @@ class TestMultibandedTransientLikelihoodFD:
             reference_chirp_mass=REFERENCE_CHIRP_MASS,
             time_offset=2.12,
             delta_f_end=53.0,
-        ).evaluate(setup["jim_params"].copy(), {})
+        ).evaluate(setup["jim_params"].copy())
 
         bilby_ll = bilby.gw.likelihood.MBGravitationalWaveTransient(
             interferometers=setup["bilby_ifos"],

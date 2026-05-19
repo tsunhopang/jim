@@ -61,7 +61,7 @@ class TestZeroLikelihood:
     def test_initialization_and_evaluation(self, detectors_and_waveform):
         likelihood = ZeroLikelihood()
         assert isinstance(likelihood, ZeroLikelihood)
-        assert likelihood.evaluate(example_params(), {}) == 0.0
+        assert likelihood.evaluate(example_params()) == 0.0
 
 
 class TestTransientLikelihoodFD:
@@ -185,9 +185,9 @@ class TestTransientLikelihoodFD:
             detectors=ifos, waveform=waveform, f_min=fmin, f_max=fmax, trigger_time=gps
         )
         params = example_params()
-        ll = likelihood.evaluate(params, {})
+        ll = likelihood.evaluate(params)
         assert jnp.isfinite(ll)
-        ll_jit = jax.jit(likelihood.evaluate)(params, {})
+        ll_jit = jax.jit(likelihood.evaluate)(params)
         assert jnp.isfinite(ll_jit)
         assert jnp.allclose(ll, ll_jit)
         ll_diff = TransientLikelihoodFD(
@@ -196,7 +196,7 @@ class TestTransientLikelihoodFD:
             f_min={"H1": fmin, "L1": fmin + 1.0},
             f_max=fmax,
             trigger_time=gps,
-        ).evaluate(params, {})
+        ).evaluate(params)
         assert jnp.isfinite(ll_diff)
         assert jnp.allclose(ll, ll_diff, atol=1e-2)
 
@@ -255,7 +255,7 @@ class TestTransientLikelihoodFD:
             trigger_time=gps,
             time_marginalization={},
         )
-        assert jnp.isfinite(likelihood.evaluate(example_params(), {}))
+        assert jnp.isfinite(likelihood.evaluate(example_params()))
 
     def test_time_marg_jit_matches(self, detectors_and_waveform):
         ifos, waveform, fmin, fmax, gps = detectors_and_waveform
@@ -269,7 +269,7 @@ class TestTransientLikelihoodFD:
         )
         params = example_params()
         assert jnp.allclose(
-            likelihood.evaluate(params, {}), jax.jit(likelihood.evaluate)(params, {})
+            likelihood.evaluate(params), jax.jit(likelihood.evaluate)(params)
         )
 
     def test_time_marg_different_fmin(self, detectors_and_waveform):
@@ -282,7 +282,7 @@ class TestTransientLikelihoodFD:
             trigger_time=gps,
             time_marginalization={},
         )
-        assert jnp.isfinite(likelihood.evaluate(example_params(), {}))
+        assert jnp.isfinite(likelihood.evaluate(example_params()))
 
     def test_time_marg_geq_base(self, detectors_and_waveform):
         """Time-marginalized log-likelihood is >= base - log(N_total).
@@ -308,8 +308,8 @@ class TestTransientLikelihoodFD:
             f_max=fmax,
             trigger_time=gps,
         )
-        marg_result = marg.evaluate(example_params(), {})
-        base_result = base.evaluate(example_params(), {})
+        marg_result = marg.evaluate(example_params())
+        base_result = base.evaluate(example_params())
         assert jnp.isfinite(marg_result)
         assert marg_result >= base_result - jnp.log(len(marg.tc_array))
 
@@ -338,7 +338,7 @@ class TestTransientLikelihoodFD:
             trigger_time=gps,
             phase_marginalization=True,
         )
-        assert jnp.isfinite(likelihood.evaluate(example_params(), {}))
+        assert jnp.isfinite(likelihood.evaluate(example_params()))
 
     def test_phase_marg_jit_matches(self, detectors_and_waveform):
         ifos, waveform, fmin, fmax, gps = detectors_and_waveform
@@ -352,7 +352,7 @@ class TestTransientLikelihoodFD:
         )
         params = example_params()
         assert jnp.allclose(
-            likelihood.evaluate(params, {}), jax.jit(likelihood.evaluate)(params, {})
+            likelihood.evaluate(params), jax.jit(likelihood.evaluate)(params)
         )
 
     def test_phase_marg_different_fmin(self, detectors_and_waveform):
@@ -365,7 +365,7 @@ class TestTransientLikelihoodFD:
             trigger_time=gps,
             phase_marginalization=True,
         )
-        assert jnp.isfinite(likelihood.evaluate(example_params(), {}))
+        assert jnp.isfinite(likelihood.evaluate(example_params()))
 
     def test_phase_marg_geq_base(self, detectors_and_waveform):
         """Phase-marginalized likelihood must be >= base (I_0(x) >= 1)."""
@@ -385,8 +385,8 @@ class TestTransientLikelihoodFD:
             f_max=fmax,
             trigger_time=gps,
         )
-        marg_result = marg.evaluate(example_params(), {})
-        base_result = base.evaluate(example_params(), {})
+        marg_result = marg.evaluate(example_params())
+        base_result = base.evaluate(example_params())
         assert jnp.isfinite(marg_result)
         assert marg_result >= base_result
 
@@ -431,7 +431,7 @@ class TestTransientLikelihoodFD:
             time_marginalization={},
             phase_marginalization=True,
         )
-        assert jnp.isfinite(likelihood.evaluate(example_params(), {}))
+        assert jnp.isfinite(likelihood.evaluate(example_params()))
 
     def test_phase_time_marg_jit_matches(self, detectors_and_waveform):
         ifos, waveform, fmin, fmax, gps = detectors_and_waveform
@@ -446,7 +446,7 @@ class TestTransientLikelihoodFD:
         )
         params = example_params()
         assert jnp.allclose(
-            likelihood.evaluate(params, {}), jax.jit(likelihood.evaluate)(params, {})
+            likelihood.evaluate(params), jax.jit(likelihood.evaluate)(params)
         )
 
     def test_phase_time_marg_different_fmin(self, detectors_and_waveform):
@@ -460,7 +460,7 @@ class TestTransientLikelihoodFD:
             time_marginalization={},
             phase_marginalization=True,
         )
-        assert jnp.isfinite(likelihood.evaluate(example_params(), {}))
+        assert jnp.isfinite(likelihood.evaluate(example_params()))
 
     def test_phase_time_marg_geq_base(self, detectors_and_waveform):
         """Phase+time marg log-likelihood is >= base - log(N_total).
@@ -487,8 +487,8 @@ class TestTransientLikelihoodFD:
             f_max=fmax,
             trigger_time=gps,
         )
-        marg_result = marg.evaluate(example_params(), {})
-        base_result = base.evaluate(example_params(), {})
+        marg_result = marg.evaluate(example_params())
+        base_result = base.evaluate(example_params())
         assert jnp.isfinite(marg_result)
         assert marg_result >= base_result - jnp.log(len(marg.tc_array))
 
@@ -517,8 +517,8 @@ class TestTransientLikelihoodFD:
             trigger_time=gps,
             phase_marginalization=True,
         )
-        pt_result = pt.evaluate(example_params(), {})
-        p_result = p.evaluate(example_params(), {})
+        pt_result = pt.evaluate(example_params())
+        p_result = p.evaluate(example_params())
         assert jnp.isfinite(pt_result)
         assert pt_result >= p_result - jnp.log(len(pt.tc_array))
 
@@ -674,7 +674,7 @@ class TestTransientLikelihoodFD:
             trigger_time=gps,
             distance_marginalization={"distance_prior": self.make_d_L_prior()},
         )
-        result = likelihood.evaluate(self.params_without_d_L(), {})
+        result = likelihood.evaluate(self.params_without_d_L())
         assert jnp.isfinite(result)
 
     def test_dist_marg_jit_matches(self, detectors_and_waveform):
@@ -688,8 +688,8 @@ class TestTransientLikelihoodFD:
             distance_marginalization={"distance_prior": self.make_d_L_prior()},
         )
         params = self.params_without_d_L()
-        result = likelihood.evaluate(params, {})
-        result_jit = jax.jit(likelihood.evaluate)(params, {})
+        result = likelihood.evaluate(params)
+        result_jit = jax.jit(likelihood.evaluate)(params)
         assert jnp.allclose(result, result_jit)
 
     def test_dist_marg_matches_base_near_true_distance(self, detectors_and_waveform):
@@ -716,8 +716,8 @@ class TestTransientLikelihoodFD:
             f_max=fmax,
             trigger_time=gps,
         )
-        marg_result = marg.evaluate(self.params_without_d_L(), {})
-        base_result = base.evaluate(example_params(), {})
+        marg_result = marg.evaluate(self.params_without_d_L())
+        base_result = base.evaluate(example_params())
         assert jnp.isfinite(marg_result)
         assert jnp.abs(marg_result - base_result) < 1.0
 
@@ -731,7 +731,7 @@ class TestTransientLikelihoodFD:
             trigger_time=gps,
             distance_marginalization={"distance_prior": self.make_d_L_prior()},
         )
-        assert jnp.isfinite(likelihood.evaluate(self.params_without_d_L(), {}))
+        assert jnp.isfinite(likelihood.evaluate(self.params_without_d_L()))
 
     # ── Phase + distance marginalization ──────────────────────────────────────
 
@@ -774,7 +774,7 @@ class TestTransientLikelihoodFD:
             phase_marginalization=True,
             distance_marginalization={"distance_prior": self.make_d_L_prior()},
         )
-        result = likelihood.evaluate(self.params_without_d_L_phase(), {})
+        result = likelihood.evaluate(self.params_without_d_L_phase())
         assert jnp.isfinite(result)
 
     def test_phase_dist_marg_jit_matches(self, detectors_and_waveform):
@@ -789,8 +789,8 @@ class TestTransientLikelihoodFD:
             distance_marginalization={"distance_prior": self.make_d_L_prior()},
         )
         params = self.params_without_d_L_phase()
-        result = likelihood.evaluate(params, {})
-        result_jit = jax.jit(likelihood.evaluate)(params, {})
+        result = likelihood.evaluate(params)
+        result_jit = jax.jit(likelihood.evaluate)(params)
         assert jnp.allclose(result, result_jit)
 
     def test_phase_dist_marg_geq_distance_marginalized(self, detectors_and_waveform):
@@ -818,8 +818,8 @@ class TestTransientLikelihoodFD:
             },
         )
         params = self.params_without_d_L_phase()
-        pd_result = pd.evaluate(params, {})
-        d_result = d.evaluate({**params, "phase_c": 0.0}, {})
+        pd_result = pd.evaluate(params)
+        d_result = d.evaluate({**params, "phase_c": 0.0})
         assert jnp.isfinite(pd_result)
         assert pd_result >= d_result
 
@@ -834,7 +834,7 @@ class TestTransientLikelihoodFD:
             phase_marginalization=True,
             distance_marginalization={"distance_prior": self.make_d_L_prior()},
         )
-        assert jnp.isfinite(likelihood.evaluate(self.params_without_d_L_phase(), {}))
+        assert jnp.isfinite(likelihood.evaluate(self.params_without_d_L_phase()))
 
     # ── Callable fixed parameters ──────────────────────────────────────────────
 
@@ -861,7 +861,7 @@ class TestTransientLikelihoodFD:
             k: v for k, v in example_params().items() if k not in ("s1_z", "s2_z")
         }
         assert jnp.allclose(
-            const.evaluate(dict(params), {}), callable_.evaluate(dict(params), {})
+            const.evaluate(dict(params)), callable_.evaluate(dict(params))
         )
 
     def test_callable_reads_sampled_params(self, detectors_and_waveform):
@@ -884,9 +884,9 @@ class TestTransientLikelihoodFD:
             f_max=fmax,
             trigger_time=gps,
         )
-        result = likelihood.evaluate(dict(params), {})
+        result = likelihood.evaluate(dict(params))
         assert_all_finite(result)
-        assert jnp.allclose(result, ref.evaluate(example_params(), {}))
+        assert jnp.allclose(result, ref.evaluate(example_params()))
 
     def test_callable_does_not_mutate_input(self, detectors_and_waveform):
         """evaluate() must not mutate the caller's params dict."""
@@ -902,7 +902,7 @@ class TestTransientLikelihoodFD:
         params = example_params()
         keys_before = set(params.keys())
         values_before = {k: float(v) for k, v in params.items()}
-        likelihood.evaluate(params, {})
+        likelihood.evaluate(params)
         assert set(params.keys()) == keys_before
         for k, v in values_before.items():
             assert float(params[k]) == v
@@ -919,8 +919,8 @@ class TestTransientLikelihoodFD:
             fixed_parameters={"s1_z": lambda p: 0.0, "s2_z": lambda p: 0.0},
         )
         params = example_params()
-        result = lambda_likelihood.evaluate(dict(params), {})
-        result_jit = jax.jit(lambda_likelihood.evaluate)(dict(params), {})
+        result = lambda_likelihood.evaluate(dict(params))
+        result_jit = jax.jit(lambda_likelihood.evaluate)(dict(params))
         assert jnp.isfinite(result_jit)
         assert jnp.allclose(result, result_jit)
 
@@ -936,7 +936,7 @@ class TestTransientLikelihoodFD:
             fixed_parameters={"t_c": transform.backward},
         )
         params_with_tdet = {**example_params(), "t_det": 0.0}
-        result_tr = transform_likelihood.evaluate(dict(params_with_tdet), {})
+        result_tr = transform_likelihood.evaluate(dict(params_with_tdet))
         result_tr_jit = jax.jit(transform_likelihood.evaluate)(
             dict(params_with_tdet), {}
         )
@@ -963,7 +963,7 @@ class TestTransientLikelihoodFD:
             trigger_time=gps,
             fixed_parameters={"s1_z": set_nonzero_s1_z, "s2_z": read_s1_z_for_s2},
         )
-        likelihood.evaluate(dict(example_params()), {})
+        likelihood.evaluate(dict(example_params()))
         assert len(seen_s1_z) == 1
         assert seen_s1_z[0] == 0.5
 
@@ -997,8 +997,8 @@ class TestTransientLikelihoodFD:
             fixed_parameters={"t_c": transform.backward},
         )
         params = {**example_params(), "t_det": t_det_fixed}
-        result_lambda = lambda_likelihood.evaluate(dict(params), {})
-        result_transform = transform_likelihood.evaluate(dict(params), {})
+        result_lambda = lambda_likelihood.evaluate(dict(params))
+        result_transform = transform_likelihood.evaluate(dict(params))
         assert jnp.isfinite(result_lambda)
         assert jnp.isfinite(result_transform)
         assert jnp.allclose(result_lambda, result_transform, atol=1e-6)
@@ -1023,9 +1023,9 @@ class TestHeterodynedTransientLikelihoodFD:
         )
         assert isinstance(likelihood, HeterodynedTransientLikelihoodFD)
         params = example_params()
-        result = likelihood.evaluate(params, {})
+        result = likelihood.evaluate(params)
         assert jnp.isfinite(result)
-        assert jnp.allclose(result, base.evaluate(params, {}))
+        assert jnp.allclose(result, base.evaluate(params))
 
     def test_initialization_stores_attributes(self, detectors_and_waveform):
         ifos, waveform, fmin, fmax, gps = detectors_and_waveform
@@ -1070,7 +1070,7 @@ class TestHeterodynedTransientLikelihoodFD:
         )
         params = example_params()
         assert jnp.allclose(
-            likelihood.evaluate(params, {}), jax.jit(likelihood.evaluate)(params, {})
+            likelihood.evaluate(params), jax.jit(likelihood.evaluate)(params)
         )
 
     def test_evaluate_different_fmin(self, detectors_and_waveform):
@@ -1083,7 +1083,7 @@ class TestHeterodynedTransientLikelihoodFD:
             trigger_time=gps,
             reference_parameters=example_params(),
         )
-        assert jnp.isfinite(likelihood.evaluate(example_params(), {}))
+        assert jnp.isfinite(likelihood.evaluate(example_params()))
 
     def test_maximize_likelihood(self, detectors_and_waveform):
         ifos, waveform, fmin, fmax, gps = detectors_and_waveform
@@ -1102,7 +1102,7 @@ class TestHeterodynedTransientLikelihoodFD:
         base = TransientLikelihoodFD(
             detectors=ifos, waveform=waveform, f_min=fmin, f_max=fmax, trigger_time=gps
         )
-        ll_injected = float(base.evaluate(true_params, {}))
+        ll_injected = float(base.evaluate(true_params))
         fixed_parameters = {
             k: v for k, v in true_params.items() if k not in ("M_c", "eta")
         }
@@ -1142,8 +1142,8 @@ class TestHeterodynedTransientLikelihoodFD:
         assert set(result.keys()) == expected_keys
         for val in result.values():
             assert jnp.isfinite(val)
-        assert jnp.isfinite(likelihood.evaluate(result, {}))
-        assert jnp.isclose(float(base.evaluate(result, {})), ll_injected)
+        assert jnp.isfinite(likelihood.evaluate(result))
+        assert jnp.isclose(float(base.evaluate(result)), ll_injected)
         common_keys_allclose(result, true_params)
 
     # ── Phase marginalization ──────────────────────────────────────────────────
@@ -1186,7 +1186,7 @@ class TestHeterodynedTransientLikelihoodFD:
             phase_marginalization=True,
         )
         assert isinstance(likelihood, HeterodynedTransientLikelihoodFD)
-        assert jnp.isfinite(likelihood.evaluate(example_params(), {}))
+        assert jnp.isfinite(likelihood.evaluate(example_params()))
 
     def test_phase_marg_jit_matches(self, detectors_and_waveform):
         ifos, waveform, fmin, fmax, gps = detectors_and_waveform
@@ -1201,7 +1201,7 @@ class TestHeterodynedTransientLikelihoodFD:
         )
         params = example_params()
         assert jnp.allclose(
-            likelihood.evaluate(params, {}), jax.jit(likelihood.evaluate)(params, {})
+            likelihood.evaluate(params), jax.jit(likelihood.evaluate)(params)
         )
 
     def test_phase_marg_different_fmin(self, detectors_and_waveform):
@@ -1215,7 +1215,7 @@ class TestHeterodynedTransientLikelihoodFD:
             reference_parameters=example_params(),
             phase_marginalization=True,
         )
-        assert jnp.isfinite(likelihood.evaluate(example_params(), {}))
+        assert jnp.isfinite(likelihood.evaluate(example_params()))
 
     def test_phase_marg_matches_base_at_ref_params(self, detectors_and_waveform):
         """At reference params the het phase-marg should closely match non-het phase-marg."""
@@ -1239,8 +1239,8 @@ class TestHeterodynedTransientLikelihoodFD:
             phase_marginalization=True,
         )
         params = example_params()
-        het_result = het_phase_likelihood.evaluate(params, {})
-        phase_result = phase_likelihood.evaluate(params, {})
+        het_result = het_phase_likelihood.evaluate(params)
+        phase_result = phase_likelihood.evaluate(params)
         assert jnp.isfinite(het_result)
         assert jnp.allclose(het_result, phase_result, atol=1e-1)
 
@@ -1258,7 +1258,7 @@ class TestHeterodynedTransientLikelihoodFD:
             reference_parameters=example_params(),
             fixed_parameters={"s1_z": lambda p: 0.0, "s2_z": lambda p: 0.0},
         )
-        assert jnp.isfinite(likelihood.evaluate(example_params(), {}))
+        assert jnp.isfinite(likelihood.evaluate(example_params()))
 
 
 class TestMultibandedTransientLikelihoodFD:
@@ -1385,9 +1385,9 @@ class TestMultibandedTransientLikelihoodFD:
             reference_chirp_mass=20.0,
         )
         params = example_params()
-        ll = likelihood.evaluate(params, {})
+        ll = likelihood.evaluate(params)
         assert jnp.isfinite(ll)
-        ll_jit = jax.jit(likelihood.evaluate)(params, {})
+        ll_jit = jax.jit(likelihood.evaluate)(params)
         assert jnp.isfinite(ll_jit)
         assert jnp.allclose(ll, ll_jit)
         ll_diff = MultibandedTransientLikelihoodFD(
@@ -1397,7 +1397,7 @@ class TestMultibandedTransientLikelihoodFD:
             f_max=fmax,
             trigger_time=gps,
             reference_chirp_mass=20.0,
-        ).evaluate(params, {})
+        ).evaluate(params)
         assert jnp.isfinite(ll_diff)
 
     def test_evaluate_does_not_mutate_params(self, detectors_and_waveform):
@@ -1413,7 +1413,7 @@ class TestMultibandedTransientLikelihoodFD:
         params = example_params()
         keys_before = set(params.keys())
         values_before = {k: float(v) for k, v in params.items()}
-        likelihood.evaluate(params, {})
+        likelihood.evaluate(params)
         assert set(params.keys()) == keys_before
         for k, v in values_before.items():
             assert float(params[k]) == v
@@ -1432,6 +1432,6 @@ class TestMultibandedTransientLikelihoodFD:
                 accuracy_factor=acc,
                 reference_chirp_mass=20.0,
             )
-            assert jnp.isfinite(likelihood.evaluate(params, {})), (
+            assert jnp.isfinite(likelihood.evaluate(params)), (
                 f"Not finite for accuracy_factor={acc}"
             )

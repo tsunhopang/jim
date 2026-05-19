@@ -17,7 +17,7 @@ from tests.utils import assert_all_finite
 class MockLikelihood:
     """Simple mock likelihood for testing."""
 
-    def evaluate(self, params, data):
+    def evaluate(self, params):
         return jnp.sum(jnp.array([params[key] for key in params]))
 
 
@@ -294,7 +294,7 @@ class TestJimPosteriorEvaluation:
         self, gw_prior, mass_ratio_to_eta_transform
     ):
         class EtaLikelihood:
-            def evaluate(self, params, data):
+            def evaluate(self, params):
                 assert "eta" in params and "M_c" in params
                 return params["M_c"] + params["eta"]
 
@@ -637,7 +637,7 @@ class TestJimPriorLikelihoodConsistencyChecks:
 class TestJimNaNPosteriorCheck:
     def test_all_nan_posterior_raises(self):
         class NaNLikelihood:
-            def evaluate(self, params, data):
+            def evaluate(self, params):
                 return jnp.nan
 
         prior = CombinePrior([UniformPrior(10.0, 80.0, parameter_names=["M_c"])])
@@ -650,7 +650,7 @@ class TestJimNaNPosteriorCheck:
 
     def test_some_nan_posterior_warns(self, caplog, monkeypatch):
         class SometimesNaNLikelihood:
-            def evaluate(self, params, data):
+            def evaluate(self, params):
                 return jnp.where(params["M_c"] > 70.0, jnp.nan, -1.0)
 
         prior = CombinePrior([UniformPrior(10.0, 80.0, parameter_names=["M_c"])])
@@ -687,7 +687,7 @@ class TestJimNaNPosteriorCheck:
 
     def test_no_nan_posterior_no_error(self):
         class FiniteLikelihood:
-            def evaluate(self, params, data):
+            def evaluate(self, params):
                 return -1.0
 
         prior = CombinePrior([UniformPrior(10.0, 80.0, parameter_names=["M_c"])])

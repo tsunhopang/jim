@@ -37,12 +37,11 @@ class LikelihoodBase(ABC):
         return self._data
 
     @abstractmethod
-    def evaluate(self, params: dict[str, Float], data: dict) -> Float:
+    def evaluate(self, params: dict[str, Float]) -> Float:
         """Evaluate the log-likelihood for a given set of parameters.
 
         Args:
             params: Dictionary mapping parameter names to values.
-            data: Auxiliary data (typically empty for pre-loaded data).
 
         Returns:
             Log-likelihood value.

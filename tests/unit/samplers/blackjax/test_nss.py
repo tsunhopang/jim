@@ -17,7 +17,7 @@ _MU = 0.5
 
 
 class _GaussianLikelihood:
-    def evaluate(self, params: dict, data: dict) -> float:  # type: ignore[override]
+    def evaluate(self, params: dict) -> float:  # type: ignore[override]
         x = params["x"]
         y = params["y"]
         return -0.5 * ((x - _MU) ** 2 + (y - _MU) ** 2) / _SIGMA**2
@@ -45,7 +45,7 @@ def _make_sampler(n_live: int = 100) -> BlackJAXNSSSampler:
 
     def log_likelihood_fn(arr):
         named = dict(zip(parameter_names, arr, strict=True))
-        return likelihood.evaluate(named, {})
+        return likelihood.evaluate(named)
 
     def log_posterior_fn(arr):
         return log_prior_fn(arr) + log_likelihood_fn(arr)

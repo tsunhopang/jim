@@ -19,7 +19,7 @@ class _GaussianLikelihood(LikelihoodBase):
 
     sigma: float = 0.1
 
-    def evaluate(self, params: dict, data: dict) -> float:  # type: ignore[override]
+    def evaluate(self, params: dict) -> float:  # type: ignore[override]
         x = params["x"]
         y = params["y"]
         return -0.5 * ((x - 0.5) ** 2 + (y - 0.5) ** 2) / self.sigma**2

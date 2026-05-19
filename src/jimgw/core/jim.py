@@ -293,7 +293,7 @@ class Jim:
                 named, _ = transform.inverse(named)
             for transform in likelihood_transforms:
                 named = transform.forward(named)
-            return likelihood.evaluate(named, {})
+            return likelihood.evaluate(named)
 
         def _log_posterior_fn(arr: Float[Array, " n_dims"]) -> Float:
             named = dict(zip(names, arr, strict=True))
@@ -304,7 +304,7 @@ class Jim:
             log_prior = prior.log_prob(named) + jac
             for transform in likelihood_transforms:
                 named = transform.forward(named)
-            return likelihood.evaluate(named, {}) + log_prior
+            return likelihood.evaluate(named) + log_prior
 
         self._log_prior_fn = _log_prior_fn
         self._log_likelihood_fn = _log_likelihood_fn

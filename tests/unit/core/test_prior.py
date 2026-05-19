@@ -384,7 +384,7 @@ class TestOther:
                 return {"x": jnp.zeros(n_samples)}
 
         class MockLikelihood:
-            def evaluate(self, params, data):  # noqa: ARG002
+            def evaluate(self, params):  # noqa: ARG002
                 return jnp.array(0.0)
 
         prior = MyPrior(("x",))

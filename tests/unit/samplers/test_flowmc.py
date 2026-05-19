@@ -21,7 +21,7 @@ class _GaussianLikelihood(LikelihoodBase):
     _model = None
     _data = None
 
-    def evaluate(self, params: dict, data: dict) -> float:  # noqa: ARG002
+    def evaluate(self, params: dict) -> float:  # noqa: ARG002
         x = params["x"]
         y = params["y"]
         return -0.5 * ((x - 0.5) ** 2 + (y - 0.5) ** 2) / 0.1**2
@@ -57,7 +57,7 @@ def _make_sampler() -> FlowMCSampler:
 
     def log_likelihood_fn(arr):
         named = dict(zip(parameter_names, arr, strict=True))
-        return likelihood.evaluate(named, {})
+        return likelihood.evaluate(named)
 
     def log_posterior_fn(arr):
         return log_prior_fn(arr) + log_likelihood_fn(arr)
