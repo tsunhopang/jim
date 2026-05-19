@@ -65,11 +65,9 @@ waveform = IMRPhenomXAS_NRTidalv3(f_ref=20)
 
 # --- Prior ---
 
-M_c_min = 1.18
-
 prior = CombinePrior(
     [
-        UniformPrior(M_c_min, 1.21, parameter_names=["M_c"]),
+        UniformPrior(1.18, 1.21, parameter_names=["M_c"]),
         UniformPrior(0.125, 1.0, parameter_names=["q"]),
         UniformPrior(-0.05, 0.05, parameter_names=["s1_z"]),
         UniformPrior(-0.05, 0.05, parameter_names=["s2_z"]),
