@@ -3,7 +3,7 @@
 Contains the noise-weighted inner product functions used by the likelihood
 and the fixed-parameter application helper.
 
-- For mass, spin, and sky/detector coordinate transforms, see :mod:`jimgw.core.single_event.transform_utils`.
+- For mass, spin, and sky/detector coordinate transforms, see ``jimgw.core.single_event.transform_utils``.
 """
 
 import jax.numpy as jnp
@@ -68,9 +68,11 @@ def complex_inner_product(
 
     The first waveform ``h1`` is complex-conjugated. The result is:
 
-    .. math::
+    $$
 
-        \\langle h_1, h_2 \\rangle = 4 \\Delta f \\sum_k \\frac{h_1^*(f_k)\\, h_2(f_k)}{S_n(f_k)}
+    \\langle h_1, h_2 \\rangle = 4 \\Delta f \\sum_k \\frac{h_1^*(f_k)\\, h_2(f_k)}{S_n(f_k)}
+
+    $$
 
     Args:
         h1 (Float[Array, " n_freq"]): First waveform (complex array).
@@ -96,11 +98,13 @@ def inner_product(
 
     Returns the real part of `complex_inner_product`:
 
-    .. math::
+        $$
 
         (h_1 | h_2) = \\operatorname{Re}\\langle h_1, h_2 \\rangle
-            = 4 \\Delta f \\sum_k \\operatorname{Re}\\!\\left[
-              \\frac{h_1^*(f_k)\\, h_2(f_k)}{S_n(f_k)} \\right]
+                = 4 \\Delta f \\sum_k \\operatorname{Re}\\!\\left[
+                    \\frac{h_1^*(f_k)\\, h_2(f_k)}{S_n(f_k)} \\right]
+
+        $$
 
     Args:
         h1 (Float[Array, " n_freq"]): First waveform (complex array).

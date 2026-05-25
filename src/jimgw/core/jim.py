@@ -239,7 +239,7 @@ class Jim:
 
         Constructs ``_log_prior_fn``, ``_log_likelihood_fn``, and
         ``_log_posterior_fn`` — flat-array callables injected into the sampler.
-        Validation is performed separately by :meth:`_validate_problem` before
+        Validation is performed separately by ``_validate_problem`` before
         this method is called.
 
         Args:

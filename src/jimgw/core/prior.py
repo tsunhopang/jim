@@ -539,7 +539,7 @@ class GaussianPrior(SequentialTransformPrior):
 
 @jaxtyped(typechecker=typechecker)
 class SinePrior(BoundedMixin, SequentialTransformPrior):
-    """Prior with PDF proportional to ``sin(x)`` over ``[0, π]``."""
+    """Prior with PDF proportional to ``sin(x)`` over ``[0, pi]``."""
 
     xmin: float = 0.0
     xmax: float = jnp.pi
@@ -570,7 +570,7 @@ class SinePrior(BoundedMixin, SequentialTransformPrior):
 
 @jaxtyped(typechecker=typechecker)
 class CosinePrior(BoundedMixin, SequentialTransformPrior):
-    """Prior with PDF proportional to ``cos(x)`` over ``[-π/2, π/2]``."""
+    """Prior with PDF proportional to ``cos(x)`` over ``[-pi/2, pi/2]``."""
 
     xmin: float = -jnp.pi / 2
     xmax: float = jnp.pi / 2

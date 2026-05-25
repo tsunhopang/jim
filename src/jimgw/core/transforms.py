@@ -399,7 +399,7 @@ class LogitTransform(BijectiveTransform):
 
 @jaxtyped(typechecker=typechecker)
 class SineTransform(BijectiveTransform):
-    """Sine transformation: ``y = sin(x)``, with ``x ∈ [-π/2, π/2]``."""
+    """Sine transformation: ``y = sin(x)``, with ``x in [-pi/2, pi/2]``."""
 
     def __repr__(self):
         return f"SineTransform(name_mapping={self.name_mapping})"
@@ -425,7 +425,7 @@ class SineTransform(BijectiveTransform):
 
 @jaxtyped(typechecker=typechecker)
 class CosineTransform(BijectiveTransform):
-    """Cosine transformation: ``y = cos(x)``, with ``x ∈ [0, π]``."""
+    """Cosine transformation: ``y = cos(x)``, with ``x in [0, pi]``."""
 
     def __repr__(self):
         return f"CosineTransform(name_mapping={self.name_mapping})"
@@ -453,8 +453,8 @@ class CosineTransform(BijectiveTransform):
 class BoundToBound(BijectiveTransform):
     """Linear rescaling from one bounded interval to another.
 
-    Maps ``x ∈ [original_lower, original_upper]`` to
-    ``y ∈ [target_lower, target_upper]`` via a linear (affine) transform.
+    Maps ``x in [original_lower, original_upper]`` to
+    ``y in [target_lower, target_upper]`` via a linear (affine) transform.
 
     Attributes:
         original_lower_bound (Float[Array, " n_dim"]): Lower bound(s) of the input interval.
@@ -513,11 +513,13 @@ class BoundToBound(BijectiveTransform):
 class BoundToUnbound(BijectiveTransform):
     """Logit-based transform from a bounded interval to the real line.
 
-    Maps ``x ∈ (original_lower, original_upper)`` to ``y ∈ (-∞, +∞)`` via
+    Maps values from ``(original_lower, original_upper)`` to the real line via
 
-    .. math::
+    $$
 
-        y = \\text{logit}\\!\\left(\\frac{x - x_{\\min}}{x_{\\max} - x_{\\min}}\\right).
+    y = \\text{logit}\\!\\left(\\frac{x - x_{\\min}}{x_{\\max} - x_{\\min}}\\right)
+
+    $$
 
     The inverse maps back with the sigmoid function.
 
@@ -676,7 +678,7 @@ class PowerLawTransform(BijectiveTransform):
 
 @jaxtyped(typechecker=typechecker)
 class CartesianToPolarTransform(BijectiveTransform):
-    """Cartesian-to-polar transform: ``(x, y) → (theta, r)`` with ``theta ∈ [0, 2π]``."""
+    """Cartesian-to-polar transform: ``(x, y) -> (theta, r)`` with ``theta in [0, 2*pi]``."""
 
     def __repr__(self):
         return f"CartesianToPolarTransform(name_mapping={self.name_mapping})"
@@ -717,10 +719,10 @@ class CartesianToPolarTransform(BijectiveTransform):
 class PeriodicTransform(BijectiveTransform):
     """Transform a periodic parameter onto a 2D circle.
 
-    Maps ``(r, θ)`` — where ``θ ∈ [xmin, xmax]`` is the periodic angle and
-    ``r`` is a scale — to Cartesian coordinates ``(x, y) = r(cos θ', sin θ')``
-    (with ``θ' = 2π(θ - xmin)/(xmax - xmin)``).  The inverse recovers
-    ``(r, θ)`` from ``(x, y)``.
+    Maps ``(r, theta)`` - where ``theta in [xmin, xmax]`` is the periodic angle and
+    ``r`` is a scale - to Cartesian coordinates ``(x, y) = r(cos theta_prime, sin theta_prime)``
+    (with ``theta_prime = 2*pi*(theta - xmin)/(xmax - xmin)``).  The inverse recovers
+    ``(r, theta)`` from ``(x, y)``.
 
     Attributes:
         xmin (Float): Lower bound of the periodic parameter.
@@ -766,7 +768,7 @@ class PeriodicTransform(BijectiveTransform):
 class RayleighTransform(BijectiveTransform):
     """CDF transform from Uniform(0, 1) to a Rayleigh distribution.
 
-    Maps ``u ∈ [0, 1]`` to ``x = sigma * sqrt(-2 * log(u))``.
+    Maps ``u in [0, 1]`` to ``x = sigma * sqrt(-2 * log(u))``.
 
     Attributes:
         sigma: Scale parameter of the Rayleigh distribution.
@@ -802,8 +804,8 @@ class RayleighTransform(BijectiveTransform):
 class GaussianTransform(BijectiveTransform):
     """CDF transform from Uniform(0, 1) to a Gaussian (normal) distribution.
 
-    Maps ``u ∈ (0, 1)`` to ``x = mu + sigma * ndtri(u)`` using the probit
-    (quantile) function.  The inverse maps ``x → ndtr((x - mu) / sigma) ∈ (0, 1)``
+    Maps ``u in (0, 1)`` to ``x = mu + sigma * ndtri(u)`` using the probit
+    (quantile) function.  The inverse maps ``x -> ndtr((x - mu) / sigma) in (0, 1)``
     using the normal CDF.
 
     Attributes:

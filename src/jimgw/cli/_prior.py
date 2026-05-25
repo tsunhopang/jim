@@ -81,7 +81,7 @@ def adapt_prior_for_ns_time(
 
            t_c ∈ [t_det.min, t_det.max]
 
-    Returns the modified :class:`PriorConfig`, or ``None`` if no adaptation is
+    Returns the modified ``PriorConfig``, or ``None`` if no adaptation is
     needed.
     """
     has_t_c = "t_c" in prior_cfg.root

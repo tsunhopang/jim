@@ -46,7 +46,7 @@ class BlackJAXNSAWSampler(Sampler):
         log_prior_fn: Log-prior callable ``(arr,) -> float``.
         log_likelihood_fn: Log-likelihood callable ``(arr,) -> float``.
         log_posterior_fn: Log-posterior callable ``(arr,) -> float``.
-        config: Optional :class:`BlackJAXNSAWConfig`; defaults to all-default values.
+        config: Optional ``BlackJAXNSAWConfig``; defaults to all-default values.
         periodic: Optional list of dimension indices that are periodic in
             ``[0, 1]`` (unit-cube space).  ``None`` means no periodic
             parameters.  Provided by Jim after resolving parameter names.

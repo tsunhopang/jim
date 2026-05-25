@@ -386,18 +386,20 @@ class GeocentricArrivalPhaseToDetectorArrivalPhaseTransform(
     ``phase_c`` (so the GW phase is ``phase_c / 2``).  In the detector
     convention the arrival phase is
 
-    .. math::
+    $$
 
-        \\phi_{\\mathrm{det}} = \\frac{\\phi_c}{2} + \\arg R_{\\mathrm{det}}
+    \\phi_{\\mathrm{det}} = \\frac{\\phi_c}{2} + \\arg R_{\\mathrm{det}}
 
-    where :math:`R_{\\mathrm{det}}` is the complex detector response.
+    $$
+
+    where $R_{\\mathrm{det}}$ is the complex detector response.
 
     Conditioning parameters are ``(ra, dec, psi, iota)``.
 
     Warning:
         This transform is derived under the assumption that the waveform consists
-        only of the dominant quadrupolar mode (:math:`\\ell = 2, |m| = 2`), following
-        the parameterisation in `arXiv:2207.03508 <https://arxiv.org/abs/2207.03508>`_.
+        only of the dominant quadrupolar mode ($\\ell = 2, |m| = 2$), following
+        the parameterisation in [arXiv:2207.03508](https://arxiv.org/abs/2207.03508).
         It is **not valid** for waveforms that include higher harmonics or orbital
         precession.  Use at your own discretion when such waveform approximants are employed.
 
@@ -479,16 +481,18 @@ class DistanceToSNRWeightedDistanceTransform(ConditionalBijectiveTransform):
     dependence into the distance parameter, making it closer to uniform in the
     posterior:
 
-    .. math::
+    $$
 
-        d_{\\hat} = \\frac{d_L}{\\mathcal{M}_c^{5/6}\\, R_{\\mathrm{net}}}
+    d_{\\hat} = \\frac{d_L}{\\mathcal{M}_c^{5/6}\\, R_{\\mathrm{net}}}
+
+    $$
 
     Conditioning parameters are ``(M_c, ra, dec, psi, iota)``.
 
     Warning:
         This transform is derived under the assumption that the waveform consists
-        only of the dominant quadrupolar mode (:math:`\\ell = 2, |m| = 2`), following
-        the parameterisation in `arXiv:2207.03508 <https://arxiv.org/abs/2207.03508>`_.
+        only of the dominant quadrupolar mode ($\\ell = 2, |m| = 2$), following
+        the parameterisation in [arXiv:2207.03508](https://arxiv.org/abs/2207.03508).
         It is **not valid** for waveforms that include higher harmonics or orbital
         precession.  Use at your own discretion when such waveform approximants are employed.
 

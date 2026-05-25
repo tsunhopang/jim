@@ -54,7 +54,7 @@ class FlowMCSampler(Sampler):
         log_prior_fn: Log-prior callable ``(arr,) -> float``.
         log_likelihood_fn: Log-likelihood callable ``(arr,) -> float``.
         log_posterior_fn: Log-posterior callable ``(arr,) -> float``.
-        config: Optional :class:`FlowMCConfig`; defaults to all-default values.
+        config: Optional ``FlowMCConfig``; defaults to all-default values.
         periodic: Optional periodic-parameter spec in index space,
             ``dict[int, (lo, hi)]`` where the key is the dimension index.
             ``None`` means no periodic parameters.  Provided by Jim after
