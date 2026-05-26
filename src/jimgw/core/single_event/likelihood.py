@@ -1174,7 +1174,7 @@ class MultibandedTransientLikelihoodFD(SingleEventLikelihood):
         Detector-frame time ``t_det`` is not supported because
         ``t_det = t_c + sky_delay(ra, dec)`` and the delay is sky-position-dependent,
         so ``t_c`` bounds cannot be derived from a ``t_det`` prior at setup time.
-        Falls back to bilby defaults (2.12 s, 53.0 Hz) when inference is not possible.
+        Falls back to defaults (2.12 s, 53.0 Hz) when inference is not possible.
         """
         inferred_to: Optional[Float] = None
         inferred_dfe: Optional[Float] = None

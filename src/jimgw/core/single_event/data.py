@@ -494,19 +494,62 @@ class Data(ABC):
                 "Supported formats: .npz, .gwf, .gwf.gz, .hdf5, .h5, .hdf, .csv"
             )
 
-    def to_file(self, path: str):
-        """Save the data to a file in .npz format.
+    def to_file(self, path: str) -> None:
+        """Save the data to a file.
+
+        Supported formats:
+
+        * ``.npz`` — NumPy archive with keys ``td`` (time-domain strain),
+          ``dt`` (time step in seconds), ``start_time`` (GPS), and ``name``.
+        * ``.txt`` / ``.dat`` — Three-column whitespace-separated text file
+          containing ``[f, real(h(f)), imag(h(f))]`` (frequency-domain strain).
+        * ``.csv`` — Same as ``.txt`` but comma-separated.
+        * ``.gwf`` — LIGO/Virgo Gravitational Wave Frame file (time-domain).
+          Requires ``gwpy``.
+        * ``.hdf5`` / ``.h5`` — HDF5 file (time-domain). Requires ``gwpy``.
 
         Args:
-            path (str): Path to save the .npz file.
+            path: Path to the output file (extension determines format).
+
+        Raises:
+            ValueError: If the file extension is not supported.
         """
-        jnp.savez(
-            path,
-            td=self.td,
-            dt=self.delta_t,
-            start_time=self.start_time,
-            name=self.name,
-        )
+        path_lower = path.lower()
+        if path_lower.endswith(".npz"):
+            np.savez(
+                path,
+                td=np.array(self.td),
+                dt=self.delta_t,
+                start_time=self.start_time,
+                name=self.name,
+            )
+        elif (
+            path_lower.endswith(".txt")
+            or path_lower.endswith(".dat")
+            or path_lower.endswith(".csv")
+        ):
+            self.fft()
+            data = np.column_stack(
+                [np.array(self.frequencies), np.array(self.fd).real, np.array(self.fd).imag]
+            )
+            if path_lower.endswith(".csv"):
+                np.savetxt(path, data, delimiter=",", header="f,real_h(f),imag_h(f)", comments="# ")
+            else:
+                np.savetxt(path, data, header="f real_h(f) imag_h(f)")
+        elif path_lower.endswith(".gwf") or path_lower.endswith(".hdf5") or path_lower.endswith(".h5"):
+            channel = self.name if ":" in self.name else f"{self.name}:STRAIN" if self.name else "STRAIN"
+            ts = TimeSeries(
+                np.array(self.td),
+                t0=self.start_time,
+                dt=self.delta_t,
+                channel=channel,
+            )
+            ts.write(path)
+        else:
+            raise ValueError(
+                f"Unsupported file format for '{path}'. "
+                "Supported formats: .npz, .txt, .dat, .csv, .gwf, .hdf5, .h5"
+            )
 
 
 class PowerSpectrum(ABC):

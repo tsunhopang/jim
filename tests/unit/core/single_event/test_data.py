@@ -391,3 +391,114 @@ class TestDataFromFile:
 
         mock_read.assert_called_once_with(source=f"data{ext}")
         assert data.name == ""
+
+
+class TestDataToFile:
+    """Tests for Data.to_file across all supported formats."""
+
+    _N = 4096
+    _DT = 1 / 2048.0
+    _T0 = 1126259462.0
+    _NAME = "H1"
+
+    def _make_data(self) -> Data:
+        td = np.random.default_rng(0).standard_normal(self._N)
+        return Data(jnp.array(td), self._DT, self._T0, self._NAME)
+
+    # -- NPZ ------------------------------------------------------------------
+
+    def test_npz_roundtrip(self, tmp_path: Path):
+        """Data saved as .npz reloads to identical arrays."""
+        path = str(tmp_path / "strain.npz")
+        d = self._make_data()
+        d.to_file(path)
+        d2 = Data.from_file(path)
+        assert jnp.allclose(d2.td, d.td)
+        assert d2.delta_t == pytest.approx(self._DT)
+        assert d2.start_time == pytest.approx(self._T0)
+        assert d2.name == self._NAME
+
+    # -- Text / dat -----------------------------------------------------------
+
+    @pytest.mark.parametrize("ext", [".txt", ".dat"])
+    def test_text_roundtrip(self, tmp_path: Path, ext: str):
+        """Frequency-domain strain saved as text reloads with matching columns."""
+        path = str(tmp_path / f"strain{ext}")
+        d = self._make_data()
+        d.to_file(path)
+        loaded = np.loadtxt(path)
+        f_expected = np.array(d.frequencies)
+        fd_expected = np.array(d.fd)
+        assert np.allclose(loaded[:, 0], f_expected)
+        assert np.allclose(loaded[:, 1], fd_expected.real)
+        assert np.allclose(loaded[:, 2], fd_expected.imag)
+
+    # -- CSV ------------------------------------------------------------------
+
+    def test_csv_roundtrip(self, tmp_path: Path):
+        """CSV file has comma delimiter and correct frequency-domain content."""
+        path = str(tmp_path / "strain.csv")
+        d = self._make_data()
+        d.to_file(path)
+        loaded = np.loadtxt(path, delimiter=",")
+        assert np.allclose(loaded[:, 0], np.array(d.frequencies))
+        assert np.allclose(loaded[:, 1], np.array(d.fd).real)
+
+    # -- GWF ------------------------------------------------------------------
+
+    def test_gwf_calls_timeseries_write(self, tmp_path: Path):
+        """to_file for .gwf constructs a TimeSeries and calls write."""
+        path = str(tmp_path / "strain.gwf")
+        d = self._make_data()
+        mock_ts = MagicMock()
+        with patch(
+            "jimgw.core.single_event.data.TimeSeries", return_value=mock_ts
+        ) as mock_cls:
+            d.to_file(path)
+        mock_cls.assert_called_once()
+        mock_ts.write.assert_called_once_with(path)
+
+    # -- HDF5 -----------------------------------------------------------------
+
+    @pytest.mark.parametrize("ext", [".hdf5", ".h5"])
+    def test_hdf5_calls_timeseries_write(self, tmp_path: Path, ext: str):
+        """to_file for HDF5 extensions calls TimeSeries.write."""
+        path = str(tmp_path / f"strain{ext}")
+        d = self._make_data()
+        mock_ts = MagicMock()
+        with patch(
+            "jimgw.core.single_event.data.TimeSeries", return_value=mock_ts
+        ) as mock_cls:
+            d.to_file(path)
+        mock_cls.assert_called_once()
+        mock_ts.write.assert_called_once_with(path)
+
+    # -- Channel name ---------------------------------------------------------
+
+    def test_gwf_channel_name_with_colon(self, tmp_path: Path):
+        """If name contains ':', it is used as-is for the channel."""
+        path = str(tmp_path / "s.gwf")
+        d = Data(jnp.array(np.zeros(self._N)), self._DT, self._T0, "H1:GDS-CALIB_STRAIN")
+        mock_ts = MagicMock()
+        with patch("jimgw.core.single_event.data.TimeSeries", return_value=mock_ts) as mock_cls:
+            d.to_file(path)
+        _, kwargs = mock_cls.call_args
+        assert kwargs["channel"] == "H1:GDS-CALIB_STRAIN"
+
+    def test_gwf_channel_name_without_colon(self, tmp_path: Path):
+        """If name has no ':', channel is set to '{name}:STRAIN'."""
+        path = str(tmp_path / "s.gwf")
+        d = self._make_data()
+        mock_ts = MagicMock()
+        with patch("jimgw.core.single_event.data.TimeSeries", return_value=mock_ts) as mock_cls:
+            d.to_file(path)
+        _, kwargs = mock_cls.call_args
+        assert kwargs["channel"] == "H1:STRAIN"
+
+    # -- Unsupported ----------------------------------------------------------
+
+    def test_unsupported_extension_raises(self, tmp_path: Path):
+        path = str(tmp_path / "strain.xyz")
+        d = self._make_data()
+        with pytest.raises(ValueError, match="Unsupported file format"):
+            d.to_file(path)

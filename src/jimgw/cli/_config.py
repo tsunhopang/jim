@@ -386,9 +386,6 @@ class CLIMultibandedConfig(BaseModel):
     optional: when omitted they are inferred automatically from the prior
     (``M_c`` minimum and ``t_c`` range respectively).  You only need to set
     them explicitly to override the inferred values.
-
-    All other parameters default to the same values as bilby's
-    ``MBGravitationalWaveTransient``.
     """
 
     model_config = {"extra": "forbid"}

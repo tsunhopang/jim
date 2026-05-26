@@ -148,7 +148,7 @@ def infer_likelihood_transforms(
         sampling_cfg: [sampling] section config.
         waveform_f_ref: Reference frequency from [waveform] — passed to
             ``SpinAnglesToCartesianSpinTransform`` to match the waveform
-            spin-angle convention (same as bilby's ``reference_frequency``).
+            spin-angle convention.
         phase_marginalization: When ``True``, ``phase_c`` is not a free
             parameter, so ``SpinAnglesToCartesianSpinTransform`` is built
             with ``fixed_phase=True`` (uses ``phase_c=0``).
