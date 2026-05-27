@@ -154,15 +154,27 @@ class BlackJAXNSAWSampler(Sampler):
 
         # Resume from checkpoint if one exists.
         if ckpt_path is not None and ckpt_path.exists():
-            with open(ckpt_path, "rb") as _f:
-                _ckpt = pickle.load(_f)
-            state = _ckpt["state"]
-            dead = _ckpt["dead"]
-            rng_key = _ckpt["rng_key"]
-            n_iter = _ckpt["n_iter"]
-            logger.info(
-                "NS-AW: resumed from checkpoint at n_iter=%d (%s)", n_iter, ckpt_path
-            )
+            try:
+                with open(ckpt_path, "rb") as _f:
+                    _ckpt = pickle.load(_f)
+                state = _ckpt["state"]
+                dead = _ckpt["dead"]
+                rng_key = _ckpt["rng_key"]
+                n_iter = _ckpt["n_iter"]
+                logger.info(
+                    "NS-AW: resumed from checkpoint at n_iter=%d (%s)",
+                    n_iter,
+                    ckpt_path,
+                )
+            except Exception as _e:
+                logger.warning(
+                    "NS-AW: corrupt checkpoint at %s (%s) — starting fresh.",
+                    ckpt_path,
+                    _e,
+                )
+                state = nested_sampler.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+                dead = []
+                n_iter = 0
         else:
             state = nested_sampler.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
             dead = []

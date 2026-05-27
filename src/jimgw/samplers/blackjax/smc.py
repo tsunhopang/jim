@@ -169,21 +169,31 @@ class BlackJAXSMCSampler(Sampler):
 
         # Resume from checkpoint if one exists.
         if ckpt_path is not None and ckpt_path.exists():
-            with open(ckpt_path, "rb") as _f:
-                _ckpt = pickle.load(_f)
-            if _ckpt.get("mode") == "ap":
-                state = _ckpt["state"]
-                rng_key = _ckpt["rng_key"]
-                n_iter = _ckpt["n_iter"]
-                cov_scale = float(_ckpt.get("cov_scale", cov_scale))
-                accept_h[:n_iter] = _ckpt["accept_history"]
-                cov_scale_h[:n_iter] = _ckpt["cov_scale_history"]
-                logger.info(
-                    "SMC-AP: resumed from checkpoint at n_iter=%d (%s)",
-                    n_iter,
+            try:
+                with open(ckpt_path, "rb") as _f:
+                    _ckpt = pickle.load(
+                        _f
+                    )  # Only load trusted checkpoints — pickle executes arbitrary code.
+                if _ckpt.get("mode") == "ap":
+                    state = _ckpt["state"]
+                    rng_key = _ckpt["rng_key"]
+                    n_iter = _ckpt["n_iter"]
+                    cov_scale = float(_ckpt.get("cov_scale", cov_scale))
+                    accept_h[:n_iter] = _ckpt["accept_history"]
+                    cov_scale_h[:n_iter] = _ckpt["cov_scale_history"]
+                    logger.info(
+                        "SMC-AP: resumed from checkpoint at n_iter=%d (%s)",
+                        n_iter,
+                        ckpt_path,
+                    )
+                else:
+                    state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+            except Exception as _e:
+                logger.warning(
+                    "SMC-AP: corrupt checkpoint at %s (%s) — starting fresh.",
                     ckpt_path,
+                    _e,
                 )
-            else:
                 state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
         else:
             state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
@@ -267,19 +277,27 @@ class BlackJAXSMCSampler(Sampler):
 
         # Resume from checkpoint if one exists.
         if ckpt_path is not None and ckpt_path.exists():
-            with open(ckpt_path, "rb") as _f:
-                _ckpt = pickle.load(_f)
-            if _ckpt.get("mode") == "fp":
-                state = _ckpt["state"]
-                rng_key = _ckpt["rng_key"]
-                n_iter = _ckpt["n_iter"]
-                accept_h[:n_iter] = _ckpt["accept_history"]
-                logger.info(
-                    "SMC-FP: resumed from checkpoint at n_iter=%d (%s)",
-                    n_iter,
+            try:
+                with open(ckpt_path, "rb") as _f:
+                    _ckpt = pickle.load(_f)
+                if _ckpt.get("mode") == "fp":
+                    state = _ckpt["state"]
+                    rng_key = _ckpt["rng_key"]
+                    n_iter = _ckpt["n_iter"]
+                    accept_h[:n_iter] = _ckpt["accept_history"]
+                    logger.info(
+                        "SMC-FP: resumed from checkpoint at n_iter=%d (%s)",
+                        n_iter,
+                        ckpt_path,
+                    )
+                else:
+                    state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+            except Exception as _e:
+                logger.warning(
+                    "SMC-FP: corrupt checkpoint at %s (%s) — starting fresh.",
                     ckpt_path,
+                    _e,
                 )
-            else:
                 state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
         else:
             state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
@@ -348,21 +366,29 @@ class BlackJAXSMCSampler(Sampler):
 
         # Resume from checkpoint if one exists.
         if ckpt_path is not None and ckpt_path.exists():
-            with open(ckpt_path, "rb") as _f:
-                _ckpt = pickle.load(_f)
-            if _ckpt.get("mode") == "at":
-                state = _ckpt["state"]
-                rng_key = _ckpt["rng_key"]
-                n_iter = _ckpt["n_iter"]
-                accept_list = list(_ckpt["accept_history"])
-                temp_list = list(_ckpt["tempering_schedule"])
-                is_weights_list = [row for row in _ckpt["is_weights_history"]]
-                logger.info(
-                    "SMC-AT: resumed from checkpoint at n_iter=%d (%s)",
-                    n_iter,
+            try:
+                with open(ckpt_path, "rb") as _f:
+                    _ckpt = pickle.load(_f)
+                if _ckpt.get("mode") == "at":
+                    state = _ckpt["state"]
+                    rng_key = _ckpt["rng_key"]
+                    n_iter = _ckpt["n_iter"]
+                    accept_list = list(_ckpt["accept_history"])
+                    temp_list = list(_ckpt["tempering_schedule"])
+                    is_weights_list = [row for row in _ckpt["is_weights_history"]]
+                    logger.info(
+                        "SMC-AT: resumed from checkpoint at n_iter=%d (%s)",
+                        n_iter,
+                        ckpt_path,
+                    )
+                else:
+                    state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+            except Exception as _e:
+                logger.warning(
+                    "SMC-AT: corrupt checkpoint at %s (%s) — starting fresh.",
                     ckpt_path,
+                    _e,
                 )
-            else:
                 state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
         else:
             state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
@@ -439,20 +465,28 @@ class BlackJAXSMCSampler(Sampler):
 
         # Resume from checkpoint if one exists.
         if ckpt_path is not None and ckpt_path.exists():
-            with open(ckpt_path, "rb") as _f:
-                _ckpt = pickle.load(_f)
-            if _ckpt.get("mode") == "ft":
-                state = _ckpt["state"]
-                rng_key = _ckpt["rng_key"]
-                n_iter = _ckpt["n_iter"]
-                accept_h[:n_iter] = _ckpt["accept_history"]
-                is_weights_list = [row for row in _ckpt["is_weights_history"]]
-                logger.info(
-                    "SMC-FT: resumed from checkpoint at n_iter=%d (%s)",
-                    n_iter,
+            try:
+                with open(ckpt_path, "rb") as _f:
+                    _ckpt = pickle.load(_f)
+                if _ckpt.get("mode") == "ft":
+                    state = _ckpt["state"]
+                    rng_key = _ckpt["rng_key"]
+                    n_iter = _ckpt["n_iter"]
+                    accept_h[:n_iter] = _ckpt["accept_history"]
+                    is_weights_list = [row for row in _ckpt["is_weights_history"]]
+                    logger.info(
+                        "SMC-FT: resumed from checkpoint at n_iter=%d (%s)",
+                        n_iter,
+                        ckpt_path,
+                    )
+                else:
+                    state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+            except Exception as _e:
+                logger.warning(
+                    "SMC-FT: corrupt checkpoint at %s (%s) — starting fresh.",
                     ckpt_path,
+                    _e,
                 )
-            else:
                 state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
         else:
             state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
