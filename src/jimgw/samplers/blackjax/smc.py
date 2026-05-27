@@ -228,7 +228,7 @@ class BlackJAXSMCSampler(Sampler):
                 _tmp = ckpt_path.with_suffix(".pkl.tmp")
                 with open(_tmp, "wb") as _f:
                     pickle.dump(_ckpt_data, _f)
-                _tmp.rename(ckpt_path)
+                _tmp.replace(ckpt_path)
                 _last_ckpt_t = time.perf_counter()
                 logger.debug("SMC-AP: checkpoint saved at n_iter=%d", n_iter)
 
@@ -306,7 +306,7 @@ class BlackJAXSMCSampler(Sampler):
                 _tmp = ckpt_path.with_suffix(".pkl.tmp")
                 with open(_tmp, "wb") as _f:
                     pickle.dump(_ckpt_data, _f)
-                _tmp.rename(ckpt_path)
+                _tmp.replace(ckpt_path)
                 _last_ckpt_t = time.perf_counter()
                 logger.debug("SMC-FP: checkpoint saved at n_iter=%d", n_iter)
 
@@ -395,7 +395,7 @@ class BlackJAXSMCSampler(Sampler):
                 _tmp = ckpt_path.with_suffix(".pkl.tmp")
                 with open(_tmp, "wb") as _f:
                     pickle.dump(_ckpt_data, _f)
-                _tmp.rename(ckpt_path)
+                _tmp.replace(ckpt_path)
                 _last_ckpt_t = time.perf_counter()
                 logger.debug("SMC-AT: checkpoint saved at n_iter=%d", n_iter)
 
@@ -481,7 +481,7 @@ class BlackJAXSMCSampler(Sampler):
                 _tmp = ckpt_path.with_suffix(".pkl.tmp")
                 with open(_tmp, "wb") as _f:
                     pickle.dump(_ckpt_data, _f)
-                _tmp.rename(ckpt_path)
+                _tmp.replace(ckpt_path)
                 _last_ckpt_t = time.perf_counter()
                 logger.debug("SMC-FT: checkpoint saved at n_iter=%d", n_iter)
 
