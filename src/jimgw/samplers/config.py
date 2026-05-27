@@ -35,6 +35,13 @@ class BaseSamplerConfig(BaseModel):
     checkpoint_path: Optional[Path] = None
     checkpoint_interval: float = 600.0
 
+    @field_validator("checkpoint_interval")
+    @classmethod
+    def _check_checkpoint_interval(cls, v: float) -> float:
+        if v < 0.0:
+            raise ValueError("checkpoint_interval must be >= 0.0")
+        return v
+
 
 # ---------------------------------------------------------------------------
 # flowMC sub-configs
