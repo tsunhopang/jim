@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import logging
+import pickle
+import time
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 import jax
@@ -19,6 +23,8 @@ from jimgw.samplers.blackjax._imports import (
 )
 from jimgw.samplers.config import BlackJAXNSSConfig
 from jimgw.samplers.periodic import to_prior_space_stepper
+
+logger = logging.getLogger(__name__)
 
 require_nested_sampling(blackjax)
 require_nss(blackjax)
@@ -110,21 +116,52 @@ class BlackJAXNSSSampler(Sampler):
             stepper_fn=self._stepper_fn,
         )
 
-        state = nested_sampler.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+        ckpt_path: Optional[Path] = config.checkpoint_path
+
+        # Resume from checkpoint if one exists.
+        if ckpt_path is not None and ckpt_path.exists():
+            with open(ckpt_path, "rb") as _f:
+                _ckpt = pickle.load(_f)
+            state = _ckpt["state"]
+            dead = _ckpt["dead"]
+            rng_key = _ckpt["rng_key"]
+            n_iter = _ckpt["n_iter"]
+            logger.info(
+                "NSS: resumed from checkpoint at n_iter=%d (%s)", n_iter, ckpt_path
+            )
+        else:
+            state = nested_sampler.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+            dead = []
+            n_iter = 0
 
         def _terminate(state: Any) -> bool:
             dlogz = jnp.logaddexp(0, state.integrator.logZ_live - state.integrator.logZ)
             return bool(jnp.isfinite(dlogz) and dlogz < config.termination_dlogz)
 
         step_fn = jax.jit(nested_sampler.step)
+        _last_ckpt_t = time.perf_counter()
 
-        dead = []
-        n_iter = 0
         while not _terminate(state):
             rng_key, subkey = jax.random.split(rng_key)
             state, dead_info = step_fn(subkey, state)
             dead.append(dead_info)
             n_iter += 1
+            if (
+                ckpt_path is not None
+                and time.perf_counter() - _last_ckpt_t >= config.checkpoint_interval
+            ):
+                _ckpt_data = {
+                    "state": state,
+                    "dead": dead,
+                    "rng_key": rng_key,
+                    "n_iter": n_iter,
+                }
+                _tmp = ckpt_path.with_suffix(".pkl.tmp")
+                with open(_tmp, "wb") as _f:
+                    pickle.dump(_ckpt_data, _f)
+                _tmp.rename(ckpt_path)
+                _last_ckpt_t = time.perf_counter()
+                logger.debug("NSS: checkpoint saved at n_iter=%d", n_iter)
 
         self._final_state = finalise(state, dead)
         self._n_iterations = n_iter

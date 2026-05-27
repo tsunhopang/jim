@@ -8,6 +8,7 @@ Each sampler has its own ``*Config`` class discriminated by a ``type`` literal;
 from __future__ import annotations
 
 import warnings
+from pathlib import Path
 from typing import Annotated, Literal, Optional, Union
 
 import numpy as np
@@ -15,11 +16,24 @@ from pydantic import BaseModel, Discriminator, Field, field_validator, model_val
 
 
 class BaseSamplerConfig(BaseModel):
-    """Fields shared by all sampler configs."""
+    """Fields shared by all sampler configs.
+
+    Args:
+        verbose: Enable verbose output during sampling.
+        checkpoint_path: Path to the checkpoint ``.pkl`` file.
+            ``None`` (default) disables checkpointing.  When set, the
+            sampler writes a checkpoint atomically and resumes from it if
+            the file already exists when sampling starts.
+        checkpoint_interval: Minimum wall-clock seconds between checkpoint
+            writes.  Default ``600`` (10 minutes).  Set to ``0.0`` to
+            checkpoint after every completed iteration.
+    """
 
     model_config = {"extra": "forbid", "arbitrary_types_allowed": True}
 
     verbose: bool = False
+    checkpoint_path: Optional[Path] = None
+    checkpoint_interval: float = 600.0
 
 
 # ---------------------------------------------------------------------------

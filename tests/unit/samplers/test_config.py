@@ -24,6 +24,8 @@ def test_flowmc_config_defaults():
     assert cfg.local_kernel == "MALA"
     assert cfg.mala.step_size == 2e-3
     assert cfg.parallel_tempering is None
+    assert cfg.checkpoint_path is None
+    assert cfg.checkpoint_interval == 600.0
 
 
 def test_blackjax_ns_aw_config_defaults():

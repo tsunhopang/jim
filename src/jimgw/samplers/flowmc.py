@@ -27,6 +27,7 @@ from jimgw.samplers.config import FlowMCConfig
 
 logger = logging.getLogger(__name__)
 
+
 # Maps (local_kernel, pt_enabled) → bundle class.
 _BUNDLE: dict[tuple[str, bool], Type] = {
     ("MALA", False): RQSpline_MALA_Bundle,
@@ -189,6 +190,8 @@ class FlowMCSampler(Sampler):
             config.n_chains,
             sampler_key,
             resource_strategy_bundles=resource_strategy_bundle,
+            checkpoint_path=config.checkpoint_path,
+            checkpoint_interval=config.checkpoint_interval,
         )
 
         initial_position = jnp.asarray(initial_position)

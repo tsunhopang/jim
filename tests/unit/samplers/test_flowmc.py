@@ -133,3 +133,49 @@ def test_flowmc_diagnostics():
     assert diag["acceptance_production_global"] is not None
     assert "sampling_time" in diag
     assert diag["sampling_time"] >= 0.0
+
+
+@pytest.mark.slow
+def test_flowmc_checkpoint_file_created(tmp_path):
+    """A checkpoint .pkl file must be created when checkpoint_path is configured."""
+    ckpt = tmp_path / "ckpt.pkl"
+    config = FlowMCConfig(
+        n_chains=10,
+        n_local_steps=5,
+        n_global_steps=5,
+        global_thinning=1,
+        n_training_loops=2,
+        n_production_loops=1,
+        n_epochs=2,
+        parallel_tempering=None,
+        checkpoint_path=ckpt,
+        checkpoint_interval=0.0,  # always write after each training loop
+    )
+    prior = CombinePrior(
+        [
+            UniformPrior(0.0, 1.0, parameter_names=["x"]),
+            UniformPrior(0.0, 1.0, parameter_names=["y"]),
+        ]
+    )
+    likelihood = _GaussianLikelihood()
+    parameter_names = prior.parameter_names
+    n_dims = len(parameter_names)
+
+    def log_prior_fn(arr):
+        return prior.log_prob(dict(zip(parameter_names, arr, strict=True)))
+
+    def log_likelihood_fn(arr):
+        return likelihood.evaluate(dict(zip(parameter_names, arr, strict=True)))
+
+    def log_posterior_fn(arr):
+        return log_prior_fn(arr) + log_likelihood_fn(arr)
+
+    s = FlowMCSampler(
+        n_dims=n_dims,
+        log_prior_fn=log_prior_fn,
+        log_likelihood_fn=log_likelihood_fn,
+        log_posterior_fn=log_posterior_fn,
+        config=config,
+    )
+    s.sample(jax.random.key(42), jnp.ones((10, 2)) * 0.5)
+    assert ckpt.exists(), "Checkpoint file was not created"
