@@ -150,6 +150,11 @@ def test_smc_ap_diagnostics():
     assert np.all(diag["ess_history"] > 0)
     assert np.all(np.isfinite(diag["ess_history"]))
 
+    # log_Z_error: delta-method IS weight variance estimate
+    assert "log_Z_error" in diag
+    assert np.isfinite(diag["log_Z_error"])
+    assert diag["log_Z_error"] >= 0.0
+
 
 def test_smc_n_evals_formula():
     """n_likelihood_evaluations == n_mcmc * n_iter * n_particles."""
@@ -215,6 +220,10 @@ def test_smc_at_diagnostics():
     assert np.all(diag["ess_history"] <= n_particles)
     assert np.all(np.isfinite(diag["ess_history"]))
 
+    assert "log_Z_error" in diag
+    assert np.isfinite(diag["log_Z_error"])
+    assert diag["log_Z_error"] >= 0.0
+
 
 def test_smc_fp_diagnostics():
     """FP mode: persistent ESS history returned for a fixed temperature ladder."""
@@ -259,3 +268,7 @@ def test_smc_fp_diagnostics():
     assert len(diag["ess_history"]) == len(ladder) - 1
     assert np.all(diag["ess_history"] > 0)
     assert np.all(np.isfinite(diag["ess_history"]))
+
+    assert "log_Z_error" in diag
+    assert np.isfinite(diag["log_Z_error"])
+    assert diag["log_Z_error"] >= 0.0

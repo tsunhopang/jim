@@ -482,6 +482,7 @@ class BlackJAXSMCSampler(Sampler):
         * ``"ess_history"`` — ESS per iteration (all modes: persistent ESS for ap/fp, Kish ESS for at/ft); length ``n_iterations``.
         * ``"persistent_log_Z"`` — cumulative log-Z after each iteration; length ``n_iterations`` (persistent modes only).
         * ``"log_Z"`` — final log Bayesian evidence (persistent modes only).
+        * ``"log_Z_error"`` — standard deviation of log Z from delta-method IS weight variance (all modes).
         """
         if not self._sampled:
             raise RuntimeError("get_diagnostics() called before sample()")
@@ -537,10 +538,32 @@ class BlackJAXSMCSampler(Sampler):
                     compute_persistent_ess(log_w.reshape(-1), normalize_weights=True)
                 )
             result["ess_history"] = ess_hist
+            # Delta-method log_Z error bar.
+            # At step k, IS weights exp(Δβ·logL) over all k batches of accumulated particles.
+            # Var(log Z_k) = Var(w) / (N_eff · E[w]²) summed across steps.
+            var_list = []
+            for k in range(1, n + 1):
+                delta_beta = float(ps.tempering_schedule[k]) - float(
+                    ps.tempering_schedule[k - 1]
+                )
+                log_L_accum = np.asarray(ps.persistent_log_likelihoods[:k]).reshape(-1)
+                log_w_k = delta_beta * log_L_accum
+                m = float(np.max(log_w_k))
+                u = np.exp(log_w_k - m)
+                mean_u = float(np.mean(u))
+                if mean_u > 0:
+                    var_list.append(float(np.var(u)) / (len(log_w_k) * mean_u**2))
+            result["log_Z_error"] = float(np.sqrt(np.sum(var_list)))
 
         if mode in ("at", "ft"):
             # IS weights are already normalized; Kish ESS = 1/sum(w^2)
             w = self._is_weights_history
+            n_particles = w.shape[1]
             result["ess_history"] = 1.0 / np.sum(w**2, axis=-1)
+            # Delta-method log_Z error bar: Var(log Z_k) = sum(p²) - 1/N for normalized weights.
+            var_per_step = np.sum(w**2, axis=-1) - 1.0 / n_particles
+            result["log_Z_error"] = float(
+                np.sqrt(float(np.clip(np.sum(var_per_step), 0.0, None)))
+            )
 
         return result
