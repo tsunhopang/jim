@@ -105,13 +105,15 @@ class BlackJAXNSSSampler(Sampler):
         n_live = config.n_live
         n_delete = int(n_live * config.n_delete_frac)
         num_inner_steps = config.num_inner_steps_per_dim * self.n_dims
+        ckpt_path: Optional[Path] = config.checkpoint_path
 
         arr = jnp.asarray(initial_position)
-        if arr.ndim != 2 or arr.shape != (n_live, self.n_dims):
-            raise ValueError(
-                f"initial_position must have shape ({n_live}, {self.n_dims}), "
-                f"got {arr.shape}."
-            )
+        if not (ckpt_path is not None and ckpt_path.exists()):
+            if arr.ndim != 2 or arr.shape != (n_live, self.n_dims):
+                raise ValueError(
+                    f"initial_position must have shape ({n_live}, {self.n_dims}), "
+                    f"got {arr.shape}."
+                )
         initial_particles = arr
 
         nested_sampler = blackjax.nss(
@@ -121,8 +123,6 @@ class BlackJAXNSSSampler(Sampler):
             num_inner_steps=num_inner_steps,
             stepper_fn=self._stepper_fn,
         )
-
-        ckpt_path: Optional[Path] = config.checkpoint_path
 
         # Resume from checkpoint if one exists.
         if ckpt_path is not None and ckpt_path.exists():

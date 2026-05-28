@@ -136,13 +136,15 @@ class BlackJAXNSAWSampler(Sampler):
         config = self._config
         n_live = config.n_live
         n_delete = int(n_live * config.n_delete_frac)
+        ckpt_path: Optional[Path] = config.checkpoint_path
 
         arr = jnp.asarray(initial_position)
-        if arr.ndim != 2 or arr.shape != (n_live, self.n_dims):
-            raise ValueError(
-                f"initial_position must have shape ({n_live}, {self.n_dims}), "
-                f"got {arr.shape}."
-            )
+        if not (ckpt_path is not None and ckpt_path.exists()):
+            if arr.ndim != 2 or arr.shape != (n_live, self.n_dims):
+                raise ValueError(
+                    f"initial_position must have shape ({n_live}, {self.n_dims}), "
+                    f"got {arr.shape}."
+                )
         initial_particles = arr
 
         nested_sampler = bilby_adaptive_de_sampler(
@@ -155,8 +157,6 @@ class BlackJAXNSAWSampler(Sampler):
             stepper_fn=self._stepper_fn,
             max_proposals=config.max_proposals,
         )
-
-        ckpt_path: Optional[Path] = config.checkpoint_path
 
         # Resume from checkpoint if one exists.
         if ckpt_path is not None and ckpt_path.exists():

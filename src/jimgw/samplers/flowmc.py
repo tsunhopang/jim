@@ -197,27 +197,28 @@ class FlowMCSampler(Sampler):
         )
 
         initial_position = jnp.asarray(initial_position)
-        if initial_position.ndim == 1:
-            if initial_position.shape[0] != self.n_dims:
+        if not (config.checkpoint_path is not None and config.checkpoint_path.exists()):
+            if initial_position.ndim == 1:
+                if initial_position.shape[0] != self.n_dims:
+                    raise ValueError(
+                        f"initial_position must have shape (n_dims,) or "
+                        f"(n_chains, n_dims). Got shape {initial_position.shape}."
+                    )
+                logger.info("1D initial_position provided. Broadcasting to all chains.")
+                initial_position = jnp.broadcast_to(
+                    initial_position, (config.n_chains, self.n_dims)
+                )
+            elif initial_position.ndim == 2:
+                if initial_position.shape != (config.n_chains, self.n_dims):
+                    raise ValueError(
+                        f"initial_position must have shape (n_dims,) or "
+                        f"(n_chains, n_dims). Got shape {initial_position.shape}."
+                    )
+            else:
                 raise ValueError(
                     f"initial_position must have shape (n_dims,) or "
                     f"(n_chains, n_dims). Got shape {initial_position.shape}."
                 )
-            logger.info("1D initial_position provided. Broadcasting to all chains.")
-            initial_position = jnp.broadcast_to(
-                initial_position, (config.n_chains, self.n_dims)
-            )
-        elif initial_position.ndim == 2:
-            if initial_position.shape != (config.n_chains, self.n_dims):
-                raise ValueError(
-                    f"initial_position must have shape (n_dims,) or "
-                    f"(n_chains, n_dims). Got shape {initial_position.shape}."
-                )
-        else:
-            raise ValueError(
-                f"initial_position must have shape (n_dims,) or "
-                f"(n_chains, n_dims). Got shape {initial_position.shape}."
-            )
 
         self._flowmc_sampler.rng_key = rng_key
         self._flowmc_sampler.sample(initial_position, {})
