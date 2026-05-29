@@ -15,7 +15,6 @@ import logging
 import pickle
 import time
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any, Optional
 
 import jax
@@ -145,7 +144,11 @@ class BlackJAXSMCSampler(Sampler):
         n_mcmc_steps = config.n_mcmc_steps_per_dim * self.n_dims
         target_ess = config._resolve_target_ess_fraction()
         max_iterations = 1000
-        ckpt_path = config.checkpoint_dir / "checkpoint.pkl" if config.checkpoint_dir is not None else None
+        ckpt_path = (
+            config.checkpoint_dir / "checkpoint.pkl"
+            if config.checkpoint_dir is not None
+            else None
+        )
 
         mcmc_step = self._build_mcmc_step()
         cov0 = jnp.atleast_2d(jnp.cov(initial_particles.T)) * config.initial_cov_scale
@@ -262,7 +265,11 @@ class BlackJAXSMCSampler(Sampler):
         n_mcmc_steps = config.n_mcmc_steps_per_dim * self.n_dims
         ladder_values = ladder[1:]  # skip 0.0 (already in init state)
         n_schedule = len(ladder_values)
-        ckpt_path = config.checkpoint_dir / "checkpoint.pkl" if config.checkpoint_dir is not None else None
+        ckpt_path = (
+            config.checkpoint_dir / "checkpoint.pkl"
+            if config.checkpoint_dir is not None
+            else None
+        )
 
         mcmc_step = self._build_mcmc_step()
         cov0 = jnp.atleast_2d(jnp.cov(initial_particles.T)) * config.initial_cov_scale
@@ -345,7 +352,11 @@ class BlackJAXSMCSampler(Sampler):
         config = self._config
         n_mcmc_steps = config.n_mcmc_steps_per_dim * self.n_dims
         target_ess = config._resolve_target_ess_fraction()
-        ckpt_path = config.checkpoint_dir / "checkpoint.pkl" if config.checkpoint_dir is not None else None
+        ckpt_path = (
+            config.checkpoint_dir / "checkpoint.pkl"
+            if config.checkpoint_dir is not None
+            else None
+        )
 
         mcmc_step = self._build_mcmc_step()
         cov0 = jnp.atleast_2d(jnp.cov(initial_particles.T)) * config.initial_cov_scale
@@ -452,7 +463,11 @@ class BlackJAXSMCSampler(Sampler):
         n_mcmc_steps = config.n_mcmc_steps_per_dim * self.n_dims
         ladder_values = ladder[1:]  # skip 0.0
         n_schedule = len(ladder_values)
-        ckpt_path = config.checkpoint_dir / "checkpoint.pkl" if config.checkpoint_dir is not None else None
+        ckpt_path = (
+            config.checkpoint_dir / "checkpoint.pkl"
+            if config.checkpoint_dir is not None
+            else None
+        )
 
         mcmc_step = self._build_mcmc_step()
         cov0 = jnp.atleast_2d(jnp.cov(initial_particles.T)) * config.initial_cov_scale
@@ -566,7 +581,11 @@ class BlackJAXSMCSampler(Sampler):
         """
         config = self._config
         n_particles = config.n_particles
-        ckpt_path = config.checkpoint_dir / "checkpoint.pkl" if config.checkpoint_dir is not None else None
+        ckpt_path = (
+            config.checkpoint_dir / "checkpoint.pkl"
+            if config.checkpoint_dir is not None
+            else None
+        )
 
         arr = jnp.asarray(initial_position)
         if not (ckpt_path is not None and ckpt_path.exists()):

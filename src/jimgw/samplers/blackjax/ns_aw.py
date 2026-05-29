@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import pickle
 import time
-from pathlib import Path
 from typing import Any, Callable, Optional
 
 import jax
@@ -136,7 +135,11 @@ class BlackJAXNSAWSampler(Sampler):
         config = self._config
         n_live = config.n_live
         n_delete = int(n_live * config.n_delete_frac)
-        ckpt_path = config.checkpoint_dir / "checkpoint.pkl" if config.checkpoint_dir is not None else None
+        ckpt_path = (
+            config.checkpoint_dir / "checkpoint.pkl"
+            if config.checkpoint_dir is not None
+            else None
+        )
 
         arr = jnp.asarray(initial_position)
         if not (ckpt_path is not None and ckpt_path.exists()):
