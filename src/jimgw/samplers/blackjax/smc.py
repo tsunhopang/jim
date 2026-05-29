@@ -175,7 +175,11 @@ class BlackJAXSMCSampler(Sampler):
         n_iter = 0
 
         # Resume from checkpoint if one exists.
-        if ckpt_path is not None and ckpt_path.exists():
+        if (
+            ckpt_path is not None
+            and config.checkpoint_interval > 0
+            and ckpt_path.exists()
+        ):
             try:
                 with open(ckpt_path, "rb") as _f:
                     _ckpt = pickle.load(
@@ -231,6 +235,7 @@ class BlackJAXSMCSampler(Sampler):
 
             if (
                 ckpt_path is not None
+                and config.checkpoint_interval > 0
                 and time.perf_counter() - _last_ckpt_t >= config.checkpoint_interval
             ):
                 _last_ckpt_t = config.write_checkpoint(
@@ -284,7 +289,11 @@ class BlackJAXSMCSampler(Sampler):
         n_iter = 0
 
         # Resume from checkpoint if one exists.
-        if ckpt_path is not None and ckpt_path.exists():
+        if (
+            ckpt_path is not None
+            and config.checkpoint_interval > 0
+            and ckpt_path.exists()
+        ):
             try:
                 with open(ckpt_path, "rb") as _f:
                     _ckpt = pickle.load(_f)
@@ -293,11 +302,21 @@ class BlackJAXSMCSampler(Sampler):
                     rng_key = _ckpt["rng_key"]
                     n_iter = _ckpt["n_iter"]
                     accept_list = list(_ckpt["accept_history"])
-                    logger.info(
-                        "SMC-FP: resumed from checkpoint at n_iter=%d (%s)",
-                        n_iter,
-                        ckpt_path,
-                    )
+                    if n_iter > n_schedule:
+                        logger.warning(
+                            "SMC-FP: checkpoint n_iter=%d exceeds current schedule length=%d — starting fresh.",
+                            n_iter,
+                            n_schedule,
+                        )
+                        state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+                        n_iter = 0
+                        accept_list = []
+                    else:
+                        logger.info(
+                            "SMC-FP: resumed from checkpoint at n_iter=%d (%s)",
+                            n_iter,
+                            ckpt_path,
+                        )
                 else:
                     state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
             except Exception as _e:
@@ -320,6 +339,7 @@ class BlackJAXSMCSampler(Sampler):
             n_iter += 1
             if (
                 ckpt_path is not None
+                and config.checkpoint_interval > 0
                 and time.perf_counter() - _last_ckpt_t >= config.checkpoint_interval
             ):
                 _last_ckpt_t = config.write_checkpoint(
@@ -374,7 +394,11 @@ class BlackJAXSMCSampler(Sampler):
         n_iter = 0
 
         # Resume from checkpoint if one exists.
-        if ckpt_path is not None and ckpt_path.exists():
+        if (
+            ckpt_path is not None
+            and config.checkpoint_interval > 0
+            and ckpt_path.exists()
+        ):
             try:
                 with open(ckpt_path, "rb") as _f:
                     _ckpt = pickle.load(_f)
@@ -416,6 +440,7 @@ class BlackJAXSMCSampler(Sampler):
 
             if (
                 ckpt_path is not None
+                and config.checkpoint_interval > 0
                 and time.perf_counter() - _last_ckpt_t >= config.checkpoint_interval
             ):
                 _last_ckpt_t = config.write_checkpoint(
@@ -474,7 +499,11 @@ class BlackJAXSMCSampler(Sampler):
         n_iter = 0
 
         # Resume from checkpoint if one exists.
-        if ckpt_path is not None and ckpt_path.exists():
+        if (
+            ckpt_path is not None
+            and config.checkpoint_interval > 0
+            and ckpt_path.exists()
+        ):
             try:
                 with open(ckpt_path, "rb") as _f:
                     _ckpt = pickle.load(_f)
@@ -484,11 +513,22 @@ class BlackJAXSMCSampler(Sampler):
                     n_iter = _ckpt["n_iter"]
                     accept_list = list(_ckpt["accept_history"])
                     is_weights_list = list(_ckpt["is_weights_history"])
-                    logger.info(
-                        "SMC-FT: resumed from checkpoint at n_iter=%d (%s)",
-                        n_iter,
-                        ckpt_path,
-                    )
+                    if n_iter > n_schedule:
+                        logger.warning(
+                            "SMC-FT: checkpoint n_iter=%d exceeds current schedule length=%d — starting fresh.",
+                            n_iter,
+                            n_schedule,
+                        )
+                        state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+                        n_iter = 0
+                        accept_list = []
+                        is_weights_list = []
+                    else:
+                        logger.info(
+                            "SMC-FT: resumed from checkpoint at n_iter=%d (%s)",
+                            n_iter,
+                            ckpt_path,
+                        )
                 else:
                     state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
             except Exception as _e:
@@ -512,6 +552,7 @@ class BlackJAXSMCSampler(Sampler):
             n_iter += 1
             if (
                 ckpt_path is not None
+                and config.checkpoint_interval > 0
                 and time.perf_counter() - _last_ckpt_t >= config.checkpoint_interval
             ):
                 _last_ckpt_t = config.write_checkpoint(

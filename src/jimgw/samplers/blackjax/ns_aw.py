@@ -162,7 +162,11 @@ class BlackJAXNSAWSampler(Sampler):
         )
 
         # Resume from checkpoint if one exists.
-        if ckpt_path is not None and ckpt_path.exists():
+        if (
+            ckpt_path is not None
+            and config.checkpoint_interval > 0
+            and ckpt_path.exists()
+        ):
             try:
                 with open(ckpt_path, "rb") as _f:
                     _ckpt = pickle.load(_f)
@@ -205,6 +209,7 @@ class BlackJAXNSAWSampler(Sampler):
             n_iter += 1
             if (
                 ckpt_path is not None
+                and config.checkpoint_interval > 0
                 and time.perf_counter() - _last_ckpt_t >= config.checkpoint_interval
             ):
                 _last_ckpt_t = config.write_checkpoint(
