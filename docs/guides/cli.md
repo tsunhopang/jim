@@ -318,7 +318,7 @@ The `type` field selects the backend. Each backend has its own set of tuning par
 | `verbose` | `false` | Print sampler-level progress |
 | `parallel_tempering` | disabled | Set to `true` to enable with defaults, or provide a dict for custom settings |
 | `checkpoint_dir` | `{output.dir}/` | Directory for `checkpoint.pkl`; set by the CLI automatically |
-| `checkpoint_interval` | `600.0` (CLI) / `0.0` (API) | Seconds between checkpoint writes; `0` disables checkpointing |
+| `checkpoint_interval` | `600.0` | Seconds between checkpoint writes; `0` disables checkpointing |
 
 Parallel-tempering sub-table:
 
