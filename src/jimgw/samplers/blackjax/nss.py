@@ -211,7 +211,7 @@ class BlackJAXNSSSampler(Sampler):
                     "NSS",
                 )
 
-        self._final_state = finalise(state, dead)
+        self._final_state = finalise(state, dead)  # type: ignore[arg-type]  # AdaptiveNSState structurally satisfies NSState (.particles field)
         self._n_iterations = n_iter
 
         # Build anesthetic NestedSamples for use in get_samples() and get_diagnostics().
