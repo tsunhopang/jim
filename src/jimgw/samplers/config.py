@@ -7,19 +7,101 @@ Each sampler has its own ``*Config`` class discriminated by a ``type`` literal;
 
 from __future__ import annotations
 
+import logging
+import pickle
+import time
 import warnings
+from pathlib import Path
 from typing import Annotated, Literal, Optional, Union
 
 import numpy as np
 from pydantic import BaseModel, Discriminator, Field, field_validator, model_validator
 
+logger = logging.getLogger(__name__)
+
 
 class BaseSamplerConfig(BaseModel):
-    """Fields shared by all sampler configs."""
+    """Fields shared by all sampler configs.
+
+    Args:
+        verbose: Enable verbose output during sampling.
+    """
 
     model_config = {"extra": "forbid", "arbitrary_types_allowed": True}
 
     verbose: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint mixin — included by the three BlackJAX configs that support it
+# ---------------------------------------------------------------------------
+
+
+class _CheckpointMixin(BaseModel):
+    """Checkpoint/resume fields for samplers that support them.
+
+    Args:
+        checkpoint_dir: Directory where ``checkpoint.pkl`` is written.
+            ``None`` (default) disables checkpointing.  The directory is
+            created automatically if it does not exist.  The checkpoint
+            filename is always ``checkpoint.pkl``.
+        checkpoint_interval: Minimum wall-clock seconds between checkpoint
+            writes.  Default ``0`` (checkpointing disabled).  Set to a
+            positive value to enable; ``checkpoint_dir`` must also be set.
+    """
+
+    # model_config is inherited from BaseSamplerConfig; not redeclared here.
+
+    checkpoint_dir: Optional[Path] = None
+    checkpoint_interval: float = 0.0
+
+    @field_validator("checkpoint_dir", mode="before")
+    @classmethod
+    def _coerce_checkpoint_dir(cls, v: object) -> Optional[Path]:
+        if v is None:
+            return None
+        return Path(str(v))
+
+    @field_validator("checkpoint_interval")
+    @classmethod
+    def _check_checkpoint_interval(cls, v: float) -> float:
+        if v < 0.0:
+            raise ValueError("checkpoint_interval must be >= 0.0")
+        return v
+
+    @model_validator(mode="after")
+    def _check_checkpoint_consistency(self) -> "_CheckpointMixin":
+        if self.checkpoint_interval > 0 and self.checkpoint_dir is None:
+            raise ValueError(
+                "checkpoint_dir must be set when checkpoint_interval > 0. "
+                "Provide a directory path or set checkpoint_interval=0 to disable checkpointing."
+            )
+        return self
+
+    def write_checkpoint(self, data: dict, tag: str) -> float:
+        """Atomically write *data* to ``checkpoint_dir/checkpoint.pkl``.
+
+        The write is done via a temporary ``.pkl.tmp`` file that is renamed
+        into place so a crash mid-write never leaves a corrupt checkpoint.
+
+        Args:
+            data: Serialisable dict to pickle.
+            tag: Short prefix for the debug log message (e.g. ``"SMC-AP"``).
+
+        Returns:
+            Wall-clock time of the write (``time.perf_counter()``), suitable
+            for resetting the caller's ``_last_ckpt_t`` timer.
+        """
+        assert self.checkpoint_dir is not None
+        ckpt_path = self.checkpoint_dir / "checkpoint.pkl"
+        ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = ckpt_path.with_suffix(".pkl.tmp")
+        with open(tmp, "wb") as _f:
+            pickle.dump(data, _f)
+        tmp.replace(ckpt_path)
+        t = time.perf_counter()
+        logger.debug("%s: checkpoint saved at n_iter=%s", tag, data.get("n_iter", "?"))
+        return t
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +165,7 @@ class GRWConfig(BaseModel):
     step_size: float | np.ndarray = 2e-3
 
 
-class FlowMCConfig(BaseSamplerConfig):
+class FlowMCConfig(BaseSamplerConfig, _CheckpointMixin):
     """Configuration for [`FlowMCSampler`][jimgw.samplers.flowmc.FlowMCSampler].
 
     The ``local_kernel`` field selects the MCMC kernel used for local proposals:
@@ -175,7 +257,7 @@ class FlowMCConfig(BaseSamplerConfig):
         return self
 
 
-class BlackJAXNSAWConfig(BaseSamplerConfig):
+class BlackJAXNSAWConfig(BaseSamplerConfig, _CheckpointMixin):
     """Configuration for the BlackJAX acceptance-walk nested sampler.
 
     !!! note
@@ -220,7 +302,7 @@ class BlackJAXNSAWConfig(BaseSamplerConfig):
         return self
 
 
-class BlackJAXNSSConfig(BaseSamplerConfig):
+class BlackJAXNSSConfig(BaseSamplerConfig, _CheckpointMixin):
     """Configuration for the BlackJAX nested slice sampler.
 
     !!! note
@@ -256,7 +338,7 @@ class BlackJAXNSSConfig(BaseSamplerConfig):
         return self
 
 
-class BlackJAXSMCConfig(BaseSamplerConfig):
+class BlackJAXSMCConfig(BaseSamplerConfig, _CheckpointMixin):
     """Configuration for the BlackJAX SMC sampler.
 
     !!! note

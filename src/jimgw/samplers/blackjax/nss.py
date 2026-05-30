@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+import pickle
+import time
 from typing import Any, Callable, Optional
 
 import jax
@@ -21,6 +24,8 @@ from jimgw.samplers.blackjax._imports import (
 )
 from jimgw.samplers.config import BlackJAXNSSConfig
 from jimgw.samplers.periodic import to_prior_space_stepper
+
+logger = logging.getLogger(__name__)
 
 require_nested_sampling(blackjax)
 require_nss(blackjax)
@@ -82,10 +87,16 @@ class BlackJAXNSSSampler(Sampler):
     ) -> None:
         """Run the BlackJAX NSS sampler.
 
+        If ``config.checkpoint_dir`` is set, a ``checkpoint.pkl`` is written
+        atomically after each nested-sampling iteration (subject to
+        ``config.checkpoint_interval``) and the sampler resumes from the
+        checkpoint if one already exists at that path.
+
         Args:
             rng_key: JAX PRNG key.
             initial_position: Starting live points in the sampling space,
                 shape ``(n_live, n_dims)``.  Must match ``config.n_live``.
+                Ignored when resuming from a checkpoint.
 
         Raises:
             ValueError: If ``initial_position`` shape does not match
@@ -95,14 +106,20 @@ class BlackJAXNSSSampler(Sampler):
         n_live = config.n_live
         n_delete = int(n_live * config.n_delete_frac)
         num_inner_steps = config.num_inner_steps_per_dim * self.n_dims
+        ckpt_path = (
+            config.checkpoint_dir / "checkpoint.pkl"
+            if config.checkpoint_dir is not None
+            else None
+        )
 
-        arr = jnp.asarray(initial_position)
-        if arr.ndim != 2 or arr.shape != (n_live, self.n_dims):
-            raise ValueError(
-                f"initial_position must have shape ({n_live}, {self.n_dims}), "
-                f"got {arr.shape}."
-            )
-        initial_particles = arr
+        def _validated_initial_particles(pos):
+            arr = jnp.asarray(pos)
+            if arr.ndim != 2 or arr.shape != (n_live, self.n_dims):
+                raise ValueError(
+                    f"initial_position must have shape ({n_live}, {self.n_dims}), "
+                    f"got {arr.shape}."
+                )
+            return arr
 
         nested_sampler = blackjax.nss(
             logprior_fn=self._log_prior_fn,
@@ -112,21 +129,64 @@ class BlackJAXNSSSampler(Sampler):
             stepper_fn=self._stepper_fn,
         )
 
-        state = nested_sampler.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+        # Resume from checkpoint if one exists.
+        if (
+            ckpt_path is not None
+            and config.checkpoint_interval > 0
+            and ckpt_path.exists()
+        ):
+            try:
+                with open(ckpt_path, "rb") as _f:
+                    _ckpt = pickle.load(_f)
+                state = _ckpt["state"]
+                dead = _ckpt["dead"]
+                rng_key = _ckpt["rng_key"]
+                n_iter = _ckpt["n_iter"]
+                logger.info(
+                    "NSS: resumed from checkpoint at n_iter=%d (%s)", n_iter, ckpt_path
+                )
+            except Exception as _e:
+                logger.warning(
+                    "NSS: corrupt checkpoint at %s (%s) — starting fresh.",
+                    ckpt_path,
+                    _e,
+                )
+                state = nested_sampler.init(
+                    _validated_initial_particles(initial_position)
+                )  # type: ignore[call-arg]  # blackjax fork API
+                dead = []
+                n_iter = 0
+        else:
+            state = nested_sampler.init(_validated_initial_particles(initial_position))  # type: ignore[call-arg]  # blackjax fork API
+            dead = []
+            n_iter = 0
 
         def _terminate(state: AdaptiveNSState) -> bool:
             dlogz = jnp.logaddexp(0, state.integrator.logZ_live - state.integrator.logZ)
             return bool(jnp.isfinite(dlogz) and dlogz < config.termination_dlogz)
 
         step_fn = jax.jit(nested_sampler.step)
+        _last_ckpt_t = time.perf_counter()
 
-        dead = []
-        n_iter = 0
         while not _terminate(state):
             rng_key, subkey = jax.random.split(rng_key)
             state, dead_info = step_fn(subkey, state)
             dead.append(dead_info)
             n_iter += 1
+            if (
+                ckpt_path is not None
+                and config.checkpoint_interval > 0
+                and time.perf_counter() - _last_ckpt_t >= config.checkpoint_interval
+            ):
+                _last_ckpt_t = config.write_checkpoint(
+                    {
+                        "state": state,
+                        "dead": dead,
+                        "rng_key": rng_key,
+                        "n_iter": n_iter,
+                    },
+                    "NSS",
+                )
 
         self._final_state = finalise(state, dead)
         self._n_iterations = n_iter

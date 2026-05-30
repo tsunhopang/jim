@@ -24,6 +24,8 @@ def test_flowmc_config_defaults():
     assert cfg.local_kernel == "MALA"
     assert cfg.mala.step_size == 2e-3
     assert cfg.parallel_tempering is None
+    assert cfg.checkpoint_dir is None
+    assert cfg.checkpoint_interval == 0.0
 
 
 def test_blackjax_ns_aw_config_defaults():
@@ -31,18 +33,24 @@ def test_blackjax_ns_aw_config_defaults():
     assert cfg.type == "blackjax-ns-aw"
     assert cfg.n_live == 1000
     assert cfg.n_delete_frac == 0.5
+    assert cfg.checkpoint_dir is None
+    assert cfg.checkpoint_interval == 0.0
 
 
 def test_blackjax_nss_config_defaults():
     cfg = BlackJAXNSSConfig()
     assert cfg.type == "blackjax-nss"
     assert cfg.n_live == 2000
+    assert cfg.checkpoint_dir is None
+    assert cfg.checkpoint_interval == 0.0
 
 
 def test_blackjax_smc_config_defaults():
     cfg = BlackJAXSMCConfig()
     assert cfg.type == "blackjax-smc"
     assert cfg.n_particles == 5000
+    assert cfg.checkpoint_dir is None
+    assert cfg.checkpoint_interval == 0.0
 
 
 def test_discriminated_union_dispatch_flowmc():
@@ -327,3 +335,32 @@ def test_smc_resolve_target_ess_fraction():
 
     cfg2 = BlackJAXSMCConfig(target_ess=1000, n_particles=2000)
     assert cfg2._resolve_target_ess_fraction() == pytest.approx(0.5)
+
+
+# ---------------------------------------------------------------------------
+# E: checkpoint_dir / checkpoint_interval validators
+# ---------------------------------------------------------------------------
+
+
+def test_checkpoint_dir_accepts_string(tmp_path):
+    from pathlib import Path
+
+    cfg = BlackJAXNSAWConfig(checkpoint_dir=str(tmp_path))
+    assert cfg.checkpoint_dir == tmp_path
+    assert isinstance(cfg.checkpoint_dir, Path)
+
+
+def test_checkpoint_interval_negative_raises():
+    with pytest.raises(ValidationError):
+        FlowMCConfig(checkpoint_interval=-1.0)
+
+
+def test_checkpoint_interval_without_dir_raises():
+    with pytest.raises(ValidationError, match="checkpoint_dir must be set"):
+        BlackJAXNSAWConfig(checkpoint_interval=600.0)
+
+
+def test_checkpoint_interval_with_dir_ok(tmp_path):
+    cfg = BlackJAXNSAWConfig(checkpoint_dir=tmp_path, checkpoint_interval=600.0)
+    assert cfg.checkpoint_dir == tmp_path
+    assert cfg.checkpoint_interval == 600.0

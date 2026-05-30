@@ -135,3 +135,95 @@ def test_nss_diagnostics():
     assert np.isfinite(diag["log_Z"])
     assert "sampling_time" in diag
     assert diag["sampling_time"] >= 0.0
+
+
+def test_nss_checkpoint_file_created(tmp_path):
+    """Checkpoint .pkl must be created when checkpoint_dir is configured."""
+
+    prior = CombinePrior(
+        [
+            UniformPrior(0.0, 1.0, parameter_names=["x"]),
+            UniformPrior(0.0, 1.0, parameter_names=["y"]),
+        ]
+    )
+    likelihood = _GaussianLikelihood()
+    parameter_names = prior.parameter_names
+    config = BlackJAXNSSConfig(
+        n_live=100,
+        n_delete_frac=0.5,
+        num_inner_steps_per_dim=5,
+        termination_dlogz=0.5,
+        checkpoint_dir=tmp_path,
+        checkpoint_interval=1e-9,
+    )
+
+    def log_prior_fn(arr):
+        return prior.log_prob(dict(zip(parameter_names, arr, strict=True)))
+
+    def log_likelihood_fn(arr):
+        return likelihood.evaluate(dict(zip(parameter_names, arr, strict=True)))
+
+    def log_posterior_fn(arr):
+        return log_prior_fn(arr) + log_likelihood_fn(arr)
+
+    sampler = BlackJAXNSSSampler(
+        n_dims=len(parameter_names),
+        log_prior_fn=log_prior_fn,
+        log_likelihood_fn=log_likelihood_fn,
+        log_posterior_fn=log_posterior_fn,
+        config=config,
+    )
+    sampler.sample(jax.random.key(42), _init_pos(100))
+    assert (tmp_path / "checkpoint.pkl").exists(), "Checkpoint file was not created"
+
+
+def test_nss_resume_gives_same_result(tmp_path):
+    """Resumed NSS run gives identical log_Z to an uninterrupted run."""
+    prior = CombinePrior(
+        [
+            UniformPrior(0.0, 1.0, parameter_names=["x"]),
+            UniformPrior(0.0, 1.0, parameter_names=["y"]),
+        ]
+    )
+    likelihood = _GaussianLikelihood()
+    parameter_names = prior.parameter_names
+
+    def _make(checkpoint_dir=None):
+        config = BlackJAXNSSConfig(
+            n_live=100,
+            n_delete_frac=0.5,
+            num_inner_steps_per_dim=5,
+            termination_dlogz=0.5,
+            checkpoint_dir=checkpoint_dir,
+            checkpoint_interval=1e-9 if checkpoint_dir is not None else 0.0,
+        )
+
+        def log_prior_fn(arr):
+            return prior.log_prob(dict(zip(parameter_names, arr, strict=True)))
+
+        def log_likelihood_fn(arr):
+            return likelihood.evaluate(dict(zip(parameter_names, arr, strict=True)))
+
+        def log_posterior_fn(arr):
+            return log_prior_fn(arr) + log_likelihood_fn(arr)
+
+        return BlackJAXNSSSampler(
+            n_dims=len(parameter_names),
+            log_prior_fn=log_prior_fn,
+            log_likelihood_fn=log_likelihood_fn,
+            log_posterior_fn=log_posterior_fn,
+            config=config,
+        )
+
+    s_a = _make(checkpoint_dir=None)
+    s_a.sample(jax.random.key(0), _init_pos(100))
+    log_z_a = s_a.get_diagnostics()["log_Z"]
+
+    s_b = _make(checkpoint_dir=tmp_path)
+    s_b.sample(jax.random.key(0), _init_pos(100))
+
+    s_c = _make(checkpoint_dir=tmp_path)
+    s_c.sample(jax.random.key(0), _init_pos(100))
+    log_z_c = s_c.get_diagnostics()["log_Z"]
+
+    assert log_z_a == pytest.approx(log_z_c, rel=1e-6)

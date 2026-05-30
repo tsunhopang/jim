@@ -27,6 +27,7 @@ from jimgw.samplers.config import FlowMCConfig
 
 logger = logging.getLogger(__name__)
 
+
 # Maps (local_kernel, pt_enabled) → bundle class.
 _BUNDLE: dict[tuple[str, bool], Type] = {
     ("MALA", False): RQSpline_MALA_Bundle,
@@ -118,6 +119,8 @@ class FlowMCSampler(Sampler):
 
         The flowMC bundle (NF + chosen local kernel + optional PT) is built
         here so that the PRNG key is derived from the key Jim passes in.
+        Checkpoint writing and resumption (when ``config.checkpoint_interval > 0``)
+        is handled by the flowMC backend via ``config.checkpoint_dir``.
 
         Args:
             rng_key: JAX PRNG key for both bundle initialisation and sampling.
@@ -184,35 +187,52 @@ class FlowMCSampler(Sampler):
 
         resource_strategy_bundle = bundle_cls(**common_kwargs)
 
+        _outdir = (
+            str(config.checkpoint_dir)
+            if config.checkpoint_dir is not None
+            else "./outdir/"
+        )
         self._flowmc_sampler = FlowMCSamplerBackend(
             n_dim=self.n_dims,
             n_chains=config.n_chains,
             rng_key=sampler_key,
             resource_strategy_bundles=resource_strategy_bundle,
+            outdir=_outdir,
+            checkpoint_interval=config.checkpoint_interval,
         )
 
+        # Skip initial_position validation when resuming from an existing checkpoint.
+        _ckpt = (
+            config.checkpoint_dir / "checkpoint.pkl"
+            if config.checkpoint_dir is not None
+            else None
+        )
+        _resuming = (
+            config.checkpoint_interval > 0 and _ckpt is not None and _ckpt.exists()
+        )
         initial_position = jnp.asarray(initial_position)
-        if initial_position.ndim == 1:
-            if initial_position.shape[0] != self.n_dims:
+        if not _resuming:
+            if initial_position.ndim == 1:
+                if initial_position.shape[0] != self.n_dims:
+                    raise ValueError(
+                        f"initial_position must have shape (n_dims,) or "
+                        f"(n_chains, n_dims). Got shape {initial_position.shape}."
+                    )
+                logger.info("1D initial_position provided. Broadcasting to all chains.")
+                initial_position = jnp.broadcast_to(
+                    initial_position, (config.n_chains, self.n_dims)
+                )
+            elif initial_position.ndim == 2:
+                if initial_position.shape != (config.n_chains, self.n_dims):
+                    raise ValueError(
+                        f"initial_position must have shape (n_dims,) or "
+                        f"(n_chains, n_dims). Got shape {initial_position.shape}."
+                    )
+            else:
                 raise ValueError(
                     f"initial_position must have shape (n_dims,) or "
                     f"(n_chains, n_dims). Got shape {initial_position.shape}."
                 )
-            logger.info("1D initial_position provided. Broadcasting to all chains.")
-            initial_position = jnp.broadcast_to(
-                initial_position, (config.n_chains, self.n_dims)
-            )
-        elif initial_position.ndim == 2:
-            if initial_position.shape != (config.n_chains, self.n_dims):
-                raise ValueError(
-                    f"initial_position must have shape (n_dims,) or "
-                    f"(n_chains, n_dims). Got shape {initial_position.shape}."
-                )
-        else:
-            raise ValueError(
-                f"initial_position must have shape (n_dims,) or "
-                f"(n_chains, n_dims). Got shape {initial_position.shape}."
-            )
 
         self._flowmc_sampler.rng_key = rng_key
         self._flowmc_sampler.sample(initial_position, {})
