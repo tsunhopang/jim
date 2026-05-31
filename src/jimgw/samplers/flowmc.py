@@ -8,6 +8,7 @@ parallel tempering.
 from __future__ import annotations
 
 import logging
+import pickle
 from typing import Any, Callable, Optional, Type
 
 import jax
@@ -202,14 +203,19 @@ class FlowMCSampler(Sampler):
         )
 
         # Skip initial_position validation when resuming from an existing checkpoint.
-        _ckpt = (
+        _ckpt_path = (
             config.checkpoint_dir / "checkpoint.pkl"
             if config.checkpoint_dir is not None
             else None
         )
         _resuming = (
-            config.checkpoint_interval > 0 and _ckpt is not None and _ckpt.exists()
+            config.checkpoint_interval > 0
+            and _ckpt_path is not None
+            and _ckpt_path.exists()
         )
+        if _resuming and _ckpt_path is not None:
+            with open(_ckpt_path, "rb") as _f:
+                self._prev_elapsed = float(pickle.load(_f)["elapsed_time"])
         initial_position = jnp.asarray(initial_position)
         if not _resuming:
             if initial_position.ndim == 1:

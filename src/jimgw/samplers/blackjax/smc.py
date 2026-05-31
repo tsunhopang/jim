@@ -149,6 +149,7 @@ class BlackJAXSMCSampler(Sampler):
             else None
         )
         config.configure_jax_cache()
+        _method_t0 = time.perf_counter()
 
         mcmc_step = self._build_mcmc_step()
         cov0 = jnp.atleast_2d(jnp.cov(initial_particles.T)) * config.initial_cov_scale
@@ -194,6 +195,7 @@ class BlackJAXSMCSampler(Sampler):
                     cov_scale = float(_ckpt.get("cov_scale", cov_scale))
                     accept_list = list(_ckpt["accept_history"])
                     cov_scale_list = list(_ckpt["cov_scale_history"])
+                    self._prev_elapsed = float(_ckpt["elapsed_time"])
                     logger.info(
                         "SMC-AP: resumed from checkpoint at n_iter=%d (%s)",
                         n_iter,
@@ -201,6 +203,7 @@ class BlackJAXSMCSampler(Sampler):
                     )
                 else:
                     state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+                    self._prev_elapsed = 0.0
             except Exception as _e:
                 logger.warning(
                     "SMC-AP: corrupt checkpoint at %s (%s) — starting fresh.",
@@ -208,6 +211,7 @@ class BlackJAXSMCSampler(Sampler):
                     _e,
                 )
                 state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+                self._prev_elapsed = 0.0
         else:
             state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
 
@@ -246,6 +250,8 @@ class BlackJAXSMCSampler(Sampler):
                         "rng_key": rng_key,
                         "n_iter": n_iter,
                         "mode": "ap",
+                        "elapsed_time": self._prev_elapsed
+                        + (time.perf_counter() - _method_t0),
                         "cov_scale": cov_scale,
                         "accept_history": accept_list.copy(),
                         "cov_scale_history": cov_scale_list.copy(),
@@ -273,6 +279,7 @@ class BlackJAXSMCSampler(Sampler):
             else None
         )
         config.configure_jax_cache()
+        _method_t0 = time.perf_counter()
 
         mcmc_step = self._build_mcmc_step()
         cov0 = jnp.atleast_2d(jnp.cov(initial_particles.T)) * config.initial_cov_scale
@@ -315,7 +322,9 @@ class BlackJAXSMCSampler(Sampler):
                         state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
                         n_iter = 0
                         accept_list = []
+                        self._prev_elapsed = 0.0
                     else:
+                        self._prev_elapsed = float(_ckpt["elapsed_time"])
                         logger.info(
                             "SMC-FP: resumed from checkpoint at n_iter=%d (%s)",
                             n_iter,
@@ -323,6 +332,7 @@ class BlackJAXSMCSampler(Sampler):
                         )
                 else:
                     state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+                    self._prev_elapsed = 0.0
             except Exception as _e:
                 logger.warning(
                     "SMC-FP: corrupt checkpoint at %s (%s) — starting fresh.",
@@ -330,6 +340,7 @@ class BlackJAXSMCSampler(Sampler):
                     _e,
                 )
                 state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+                self._prev_elapsed = 0.0
         else:
             state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
 
@@ -352,6 +363,8 @@ class BlackJAXSMCSampler(Sampler):
                         "rng_key": rng_key,
                         "n_iter": n_iter,
                         "mode": "fp",
+                        "elapsed_time": self._prev_elapsed
+                        + (time.perf_counter() - _method_t0),
                         "accept_history": accept_list.copy(),
                     },
                     "SMC-FP",
@@ -373,6 +386,7 @@ class BlackJAXSMCSampler(Sampler):
             else None
         )
         config.configure_jax_cache()
+        _method_t0 = time.perf_counter()
 
         mcmc_step = self._build_mcmc_step()
         cov0 = jnp.atleast_2d(jnp.cov(initial_particles.T)) * config.initial_cov_scale
@@ -415,6 +429,7 @@ class BlackJAXSMCSampler(Sampler):
                     accept_list = list(_ckpt["accept_history"])
                     temp_list = list(_ckpt["tempering_schedule"])
                     is_weights_list = list(_ckpt["is_weights_history"])
+                    self._prev_elapsed = float(_ckpt["elapsed_time"])
                     logger.info(
                         "SMC-AT: resumed from checkpoint at n_iter=%d (%s)",
                         n_iter,
@@ -422,6 +437,7 @@ class BlackJAXSMCSampler(Sampler):
                     )
                 else:
                     state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+                    self._prev_elapsed = 0.0
             except Exception as _e:
                 logger.warning(
                     "SMC-AT: corrupt checkpoint at %s (%s) — starting fresh.",
@@ -429,6 +445,7 @@ class BlackJAXSMCSampler(Sampler):
                     _e,
                 )
                 state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+                self._prev_elapsed = 0.0
         else:
             state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
 
@@ -455,6 +472,8 @@ class BlackJAXSMCSampler(Sampler):
                         "rng_key": rng_key,
                         "n_iter": n_iter,
                         "mode": "at",
+                        "elapsed_time": self._prev_elapsed
+                        + (time.perf_counter() - _method_t0),
                         "accept_history": accept_list.copy(),
                         "tempering_schedule": temp_list.copy(),
                         "is_weights_history": np.stack(is_weights_list),
@@ -487,6 +506,7 @@ class BlackJAXSMCSampler(Sampler):
             else None
         )
         config.configure_jax_cache()
+        _method_t0 = time.perf_counter()
 
         mcmc_step = self._build_mcmc_step()
         cov0 = jnp.atleast_2d(jnp.cov(initial_particles.T)) * config.initial_cov_scale
@@ -531,7 +551,9 @@ class BlackJAXSMCSampler(Sampler):
                         n_iter = 0
                         accept_list = []
                         is_weights_list = []
+                        self._prev_elapsed = 0.0
                     else:
+                        self._prev_elapsed = float(_ckpt["elapsed_time"])
                         logger.info(
                             "SMC-FT: resumed from checkpoint at n_iter=%d (%s)",
                             n_iter,
@@ -539,6 +561,7 @@ class BlackJAXSMCSampler(Sampler):
                         )
                 else:
                     state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+                    self._prev_elapsed = 0.0
             except Exception as _e:
                 logger.warning(
                     "SMC-FT: corrupt checkpoint at %s (%s) — starting fresh.",
@@ -546,6 +569,7 @@ class BlackJAXSMCSampler(Sampler):
                     _e,
                 )
                 state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
+                self._prev_elapsed = 0.0
         else:
             state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
 
@@ -569,6 +593,8 @@ class BlackJAXSMCSampler(Sampler):
                         "rng_key": rng_key,
                         "n_iter": n_iter,
                         "mode": "ft",
+                        "elapsed_time": self._prev_elapsed
+                        + (time.perf_counter() - _method_t0),
                         "accept_history": accept_list.copy(),
                         "is_weights_history": np.stack(is_weights_list),
                     },

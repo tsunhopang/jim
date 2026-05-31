@@ -114,6 +114,7 @@ class BlackJAXNSSSampler(Sampler):
             else None
         )
         config.configure_jax_cache()
+        _method_t0 = time.perf_counter()
 
         def _validated_initial_particles(pos):
             arr = jnp.asarray(pos)
@@ -166,6 +167,7 @@ class BlackJAXNSSSampler(Sampler):
                 dead = _ckpt["dead"]
                 rng_key = _ckpt["rng_key"]
                 n_iter = _ckpt["n_iter"]
+                self._prev_elapsed = float(_ckpt["elapsed_time"])
                 logger.info(
                     "NSS: resumed from checkpoint at n_iter=%d (%s)", n_iter, ckpt_path
                 )
@@ -180,6 +182,7 @@ class BlackJAXNSSSampler(Sampler):
                 )
                 dead = []
                 n_iter = 0
+                self._prev_elapsed = 0.0
         else:
             state = _batched_nss_init(_validated_initial_particles(initial_position))
             dead = []
@@ -208,6 +211,8 @@ class BlackJAXNSSSampler(Sampler):
                         "dead": dead,
                         "rng_key": rng_key,
                         "n_iter": n_iter,
+                        "elapsed_time": self._prev_elapsed
+                        + (time.perf_counter() - _method_t0),
                     },
                     "NSS",
                 )

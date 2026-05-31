@@ -41,6 +41,7 @@ class Sampler(ABC):
     n_dims: int
     _sampled: bool
     _sampling_time: float
+    _prev_elapsed: float
 
     def __init__(
         self,
@@ -58,6 +59,7 @@ class Sampler(ABC):
         self._config = config
         self._sampled = False
         self._sampling_time = 0.0
+        self._prev_elapsed = 0.0
 
     def sample(
         self,
@@ -75,7 +77,7 @@ class Sampler(ABC):
         """
         t0 = time.perf_counter()
         self._sample(rng_key, initial_position)
-        self._sampling_time = time.perf_counter() - t0
+        self._sampling_time = self._prev_elapsed + (time.perf_counter() - t0)
         self._sampled = True
 
     @abstractmethod

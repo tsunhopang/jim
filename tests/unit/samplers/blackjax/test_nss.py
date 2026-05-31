@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import jax
 import numpy as np
+import pickle
 import pytest
 
 blackjax = pytest.importorskip("blackjax")
@@ -174,7 +175,12 @@ def test_nss_checkpoint_file_created(tmp_path):
         config=config,
     )
     sampler.sample(jax.random.key(42), _init_pos(100))
-    assert (tmp_path / "checkpoint.pkl").exists(), "Checkpoint file was not created"
+    ckpt_path = tmp_path / "checkpoint.pkl"
+    assert ckpt_path.exists(), "Checkpoint file was not created"
+    with open(ckpt_path, "rb") as f:
+        ckpt = pickle.load(f)
+    assert "elapsed_time" in ckpt
+    assert ckpt["elapsed_time"] >= 0.0
 
 
 def test_nss_resume_gives_same_result(tmp_path):
@@ -221,9 +227,12 @@ def test_nss_resume_gives_same_result(tmp_path):
 
     s_b = _make(checkpoint_dir=tmp_path)
     s_b.sample(jax.random.key(0), _init_pos(100))
+    with open(tmp_path / "checkpoint.pkl", "rb") as f:
+        ckpt_b = pickle.load(f)
 
     s_c = _make(checkpoint_dir=tmp_path)
     s_c.sample(jax.random.key(0), _init_pos(100))
-    log_z_c = s_c.get_diagnostics()["log_Z"]
+    diag_c = s_c.get_diagnostics()
 
-    assert log_z_a == pytest.approx(log_z_c, rel=1e-6)
+    assert diag_c["log_Z"] == pytest.approx(log_z_a, rel=1e-6)
+    assert diag_c["sampling_time"] >= ckpt_b["elapsed_time"]

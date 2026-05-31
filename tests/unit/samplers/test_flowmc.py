@@ -7,6 +7,7 @@ sampler runs and returns well-formed dicts from get_samples() and get_diagnostic
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pickle
 import pytest
 
 from jimgw.core.base import LikelihoodBase
@@ -177,7 +178,12 @@ def test_flowmc_checkpoint_file_created(tmp_path):
         config=config,
     )
     s.sample(jax.random.key(42), jnp.ones((10, 2)) * 0.5)
-    assert (tmp_path / "checkpoint.pkl").exists(), "Checkpoint file was not created"
+    ckpt_path = tmp_path / "checkpoint.pkl"
+    assert ckpt_path.exists(), "Checkpoint file was not created"
+    with open(ckpt_path, "rb") as f:
+        ckpt = pickle.load(f)
+    assert "elapsed_time" in ckpt
+    assert ckpt["elapsed_time"] >= 0.0
 
 
 @pytest.mark.slow
