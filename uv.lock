@@ -906,7 +906,7 @@ wheels = [
 
 [[package]]
 name = "flowmc"
-version = "0.5.1"
+version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "diffrax" },
@@ -916,9 +916,9 @@ dependencies = [
     { name = "optax" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/00/eb/b93e37f2add7ff1c2cf57645622bde45f6c0f2dc8d720ae7fe332db39f84/flowmc-0.5.1.tar.gz", hash = "sha256:70c5cc2eced4676efddbd979c607da86419ece1405a992c83384334ce7df6569", size = 2792429, upload-time = "2026-04-25T23:05:37.76Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d9/db/4c931fda0e3d710fca7d5c6129b7fbd6e3008beb8aa32ef85a83b6ac1d66/flowmc-0.6.0.tar.gz", hash = "sha256:67df0f482cd716a031a0b42a052d9f3e73c931a858aa8c77c3b19172dcef376f", size = 2819483, upload-time = "2026-06-04T19:51:24.5Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/99/85/b94205ae5a863776cd32ee56310994d7aaabfdca2a99a45ab1cbc10ead17/flowmc-0.5.1-py3-none-any.whl", hash = "sha256:ac58b4e128acb44da3da40bc24684f03bac53ddf40fdb75c5baac216f3dec829", size = 85424, upload-time = "2026-04-25T23:05:36.352Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/8e/9888bdefca64bba6d3660c184670270771380b2d1830e1710aa3a1418cce/flowmc-0.6.0-py3-none-any.whl", hash = "sha256:9e6f0d4fe4f7b3dde4108cf374ffd13b51bed3ba84e18e4b8c13534293f35df9", size = 92174, upload-time = "2026-06-04T19:51:23.209Z" },
 ]
 
 [[package]]
@@ -1404,7 +1404,7 @@ requires-dist = [
     { name = "corner", marker = "extra == 'visualize'", specifier = ">=2.2.3" },
     { name = "equinox", specifier = ">=0.11" },
     { name = "evosax", specifier = ">=0.2.0" },
-    { name = "flowmc", specifier = ">=0.5.0" },
+    { name = "flowmc", specifier = ">=0.6.0" },
     { name = "gwpy", specifier = ">=3.0.12" },
     { name = "jax", specifier = ">=0.8.2" },
     { name = "jax", extras = ["cuda"], marker = "extra == 'cuda'", specifier = ">=0.8.2" },
@@ -1412,7 +1412,7 @@ requires-dist = [
     { name = "matplotlib", marker = "extra == 'visualize'", specifier = ">=3.10.7" },
     { name = "numpy", marker = "extra == 'visualize'" },
     { name = "pydantic", specifier = ">=2" },
-    { name = "ripplegw", specifier = ">=0.1.1" },
+    { name = "ripplegw", specifier = ">=0.2.0" },
     { name = "scipy", specifier = ">=1.17.1" },
     { name = "tomli-w", specifier = ">=1.0" },
     { name = "typer", specifier = ">=0.12" },
@@ -3269,15 +3269,15 @@ wheels = [
 
 [[package]]
 name = "ripplegw"
-version = "0.1.1"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jax" },
     { name = "jaxtyping" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5e/39/38da018433be712287c65400f5bf6ba6469f5886deb68c508d49fd6a5cdd/ripplegw-0.1.1.tar.gz", hash = "sha256:87b986b82f6e9aa8802da1337f0b3c92965e0bd770ce82f141203c2aa70bbdaf", size = 372206, upload-time = "2026-04-26T21:08:53.941Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6d/fa/56a2428432e1b5c8069731f8739dd78f497b7aa9ea7fc81afcc93b29605e/ripplegw-0.2.0.tar.gz", hash = "sha256:4b339ba9c4711c2fe75c2f3002fcb5934d37ecc8c17ed2d2b810f7eefeb70b97", size = 465063, upload-time = "2026-06-04T20:02:42.686Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/35/0721c627fee327896ebbf831c11749e73dc402f26281cc29abb385caae35/ripplegw-0.1.1-py3-none-any.whl", hash = "sha256:b80d76f0f3b5fa89adc749af08519790f76b99614a04c812b3e4a63e7c336c67", size = 120181, upload-time = "2026-04-26T21:08:52.833Z" },
+    { url = "https://files.pythonhosted.org/packages/30/45/337f2934acf1bfea4db2fca1a37394762d6ee0951c05890cedf6276844af/ripplegw-0.2.0-py3-none-any.whl", hash = "sha256:639be7385a783d6534773a520731ed73310daf4ea709fd1f380438d70779d60f", size = 182143, upload-time = "2026-06-04T20:02:41.477Z" },
 ]
 
 [[package]]
