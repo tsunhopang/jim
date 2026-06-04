@@ -172,7 +172,13 @@ class BlackJAXNSSSampler(Sampler):
                 logger.info(
                     "NSS: resumed from checkpoint at n_iter=%d (%s)", n_iter, ckpt_path
                 )
-            except Exception as _e:
+            except (
+                OSError,
+                EOFError,
+                KeyError,
+                ValueError,
+                pickle.UnpicklingError,
+            ) as _e:
                 logger.warning(
                     "NSS: corrupt checkpoint at %s (%s) — starting fresh.",
                     ckpt_path,

@@ -55,12 +55,7 @@ class _DataBase(BaseModel):
                 f"Supported: {sorted(_SUPPORTED_DETECTORS)}"
             )
         if len(v) != len(set(v)):
-            seen: set[str] = set()
-            duplicates: list[str] = []
-            for d in v:
-                if d in seen:
-                    duplicates.append(d)
-                seen.add(d)
+            duplicates = [d for d in set(v) if v.count(d) > 1]
             raise ValueError(f"Duplicate detector name(s): {duplicates}")
         return v
 

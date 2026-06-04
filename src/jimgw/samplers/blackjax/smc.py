@@ -205,7 +205,13 @@ class BlackJAXSMCSampler(Sampler):
                 else:
                     state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
                     self._prev_elapsed = 0.0
-            except Exception as _e:
+            except (
+                OSError,
+                EOFError,
+                KeyError,
+                ValueError,
+                pickle.UnpicklingError,
+            ) as _e:
                 logger.warning(
                     "SMC-AP: corrupt checkpoint at %s (%s) — starting fresh.",
                     ckpt_path,
@@ -338,7 +344,13 @@ class BlackJAXSMCSampler(Sampler):
                 else:
                     state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
                     self._prev_elapsed = 0.0
-            except Exception as _e:
+            except (
+                OSError,
+                EOFError,
+                KeyError,
+                ValueError,
+                pickle.UnpicklingError,
+            ) as _e:
                 logger.warning(
                     "SMC-FP: corrupt checkpoint at %s (%s) — starting fresh.",
                     ckpt_path,
@@ -447,7 +459,13 @@ class BlackJAXSMCSampler(Sampler):
                 else:
                     state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
                     self._prev_elapsed = 0.0
-            except Exception as _e:
+            except (
+                OSError,
+                EOFError,
+                KeyError,
+                ValueError,
+                pickle.UnpicklingError,
+            ) as _e:
                 logger.warning(
                     "SMC-AT: corrupt checkpoint at %s (%s) — starting fresh.",
                     ckpt_path,
@@ -575,7 +593,13 @@ class BlackJAXSMCSampler(Sampler):
                 else:
                     state = smc_alg.init(initial_particles)  # type: ignore[call-arg]  # blackjax fork API
                     self._prev_elapsed = 0.0
-            except Exception as _e:
+            except (
+                OSError,
+                EOFError,
+                KeyError,
+                ValueError,
+                pickle.UnpicklingError,
+            ) as _e:
                 logger.warning(
                     "SMC-FT: corrupt checkpoint at %s (%s) — starting fresh.",
                     ckpt_path,

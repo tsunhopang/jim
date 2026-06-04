@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Optional
 import logging
 import time
+import tempfile
+import os
 
 import jax
 import jax.numpy as jnp
@@ -160,6 +162,8 @@ class Detector(ABC):
         self._sliced_frequencies = jnp.array([])
         self._sliced_fd_data = jnp.array([])
         self._sliced_psd = jnp.array([])
+        self.optimal_snr = None
+        self.match_filtered_snr = None
 
     @property
     def sliced_frequencies(self) -> Float[Array, " n_freq"]:
@@ -515,10 +519,17 @@ class GroundBased2G(Detector):
         else:
             logger.info("Grabbing GWTC-2 PSD for " + self.name)
             url = asd_file_dict[self.name]
-            data = requests.get(url)
-            tmp_file_name = f"fetched_default_asd_{self.name}.txt"
-            open(tmp_file_name, "wb").write(data.content)
-            _loaded_psd = PowerSpectrum.from_file(tmp_file_name, is_asd=True)
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
+            fd, tmp_file_name = tempfile.mkstemp(
+                suffix=".txt", prefix=f"jim_asd_{self.name}_"
+            )
+            try:
+                os.write(fd, response.content)
+                os.close(fd)
+                _loaded_psd = PowerSpectrum.from_file(tmp_file_name, is_asd=True)
+            finally:
+                os.unlink(tmp_file_name)
         _loaded_psd.name = f"{self.name}_psd"
         self.set_psd(_loaded_psd)
         return self.psd

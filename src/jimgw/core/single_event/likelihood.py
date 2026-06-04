@@ -1125,7 +1125,7 @@ class MultibandedTransientLikelihoodFD(SingleEventLikelihood):
         """
         if param_name not in prior.parameter_names:
             return None
-        if hasattr(prior, "xmin"):
+        if hasattr(prior, "xmin") and hasattr(prior, "xmax"):
             return prior
         if hasattr(prior, "base_prior"):
             components = getattr(prior, "base_prior")

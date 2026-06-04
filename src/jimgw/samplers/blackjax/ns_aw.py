@@ -186,7 +186,13 @@ class BlackJAXNSAWSampler(Sampler):
                     n_iter,
                     ckpt_path,
                 )
-            except Exception as _e:
+            except (
+                OSError,
+                EOFError,
+                KeyError,
+                ValueError,
+                pickle.UnpicklingError,
+            ) as _e:
                 logger.warning(
                     "NS-AW: corrupt checkpoint at %s (%s) — starting fresh.",
                     ckpt_path,

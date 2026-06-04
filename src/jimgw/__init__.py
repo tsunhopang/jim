@@ -11,7 +11,7 @@ except PackageNotFoundError:
 # CLI, standalone modules) produce INFO output without any application setup.
 _log = logging.getLogger(__name__)
 _log.setLevel(logging.INFO)
-if not any(isinstance(h, logging.StreamHandler) for h in _log.handlers):
+if not any(type(h) is logging.StreamHandler for h in _log.handlers):
     _h = logging.StreamHandler()
     _h.setFormatter(logging.Formatter("%(name)s - %(levelname)s - %(message)s"))
     _log.addHandler(_h)
