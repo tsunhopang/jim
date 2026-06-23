@@ -105,9 +105,10 @@ jobs:
         with:
           ref: jim-dev
       - name: Tag jim-dev with next minor dev version
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
         run: |
-          VERSION="${{ github.event.release.tag_name }}"
-          VERSION="${VERSION#v}"
+          VERSION="${TAG_NAME#v}"
           IFS='.' read -r major minor patch <<< "$VERSION"
           NEXT="v${major}.$((minor + 1)).0.dev0"
           git tag --force "$NEXT"
@@ -117,10 +118,14 @@ jobs:
     needs: [test, pre-commit]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/jimgw/
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: astral-sh/setup-uv@v7
       - name: Build package
         run: uv build

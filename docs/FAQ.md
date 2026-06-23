@@ -58,9 +58,14 @@ The right knob depends on which sampler backend you use. In every case the goal 
 
 flowMC has two independent memory bottlenecks:
 
-1. **The NF proposal step — usually the bottleneck.** During each global step the likelihood is evaluated at `n_chains × n_global_steps` normalizing-flow proposals at once. Reduce `n_NFproposal_batch_size` (default `1000`); flowMC then evaluates the proposals in smaller `jax.lax.map` chunks instead of one big batch. **Try this first.**
+1. **The NF proposal step — usually the bottleneck.**
+During each global step, normalizing-flow proposals are generated for all chains at once.
+Reduce `n_NFproposal_batch_size` (default `1000`); flowMC then evaluates the proposals in smaller `jax.lax.map` chunks instead of one big batch.
+**Try this first.**
 
-2. **The local step — when the likelihood is very expensive.** Sometimes the problem is not the `n_chains × n_global_steps` proposals, but that even a *single* likelihood evaluation per chain across all `n_chains` chains will not fit. In that case also set `chain_batch_size` to a small positive integer (default `0` means all chains at once; smaller values use less memory) so chains are processed in sub-batches.
+2. **The local step — when the likelihood is very expensive.**
+Sometimes the problem is not the NF proposals, but that even a *single* likelihood evaluation per chain across all `n_chains` chains will not fit.
+In that case also set `chain_batch_size` to a small positive integer (default `0` means all chains at once; smaller values use less memory) so chains are processed in sub-batches.
 
 ```python
 from jimgw.samplers.config import FlowMCConfig
