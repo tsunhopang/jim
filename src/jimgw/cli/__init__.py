@@ -1,5 +1,6 @@
 import logging
 import tomllib
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Optional
 
@@ -127,6 +128,7 @@ def run(
         raise typer.Exit(code=2) from exc
 
     _log_config_summary(cfg)
+    _log_versions(cfg.sampler.type)
 
     out_dir = cfg.output.dir
     if out_dir.exists() and not cfg.output.overwrite:
@@ -233,6 +235,20 @@ def run(
     except FileExistsError as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=2) from exc
+
+
+def _log_versions(sampler_type: str) -> None:
+    dists = ["JimGW", "rippleGW"]
+    if sampler_type == "flowmc":
+        dists.append("flowMC")
+    parts = []
+    for dist in dists:
+        try:
+            parts.append(f"{dist} {version(dist)}")
+        except PackageNotFoundError:
+            pass
+    if parts:
+        logger.info(" | ".join(parts))
 
 
 def _log_config_summary(cfg: PipelineConfig) -> None:

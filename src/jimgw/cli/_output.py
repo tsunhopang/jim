@@ -1,6 +1,7 @@
 import json
 import logging
 import shutil
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Optional
 
@@ -45,11 +46,12 @@ def write_outputs(jim, cfg) -> None:
     scalar_diag = {k: v for k, v in diagnostics.items() if np.asarray(v).ndim == 0}
     array_diag = {k: v for k, v in diagnostics.items() if np.asarray(v).ndim > 0}
 
-    if scalar_diag:
-        diag_json = out_dir / "diagnostics.json"
-        with open(diag_json, "w") as f:
-            json.dump({k: float(v) for k, v in scalar_diag.items()}, f, indent=2)
-        logger.info("Saved scalar diagnostics to %s", diag_json)
+    diag_json = out_dir / "diagnostics.json"
+    diag_data: dict = {"versions": _collect_versions(cfg.sampler.type)}
+    diag_data.update({k: float(v) for k, v in scalar_diag.items()})
+    with open(diag_json, "w") as f:
+        json.dump(diag_data, f, indent=2)
+    logger.info("Saved diagnostics to %s", diag_json)
 
     if array_diag:
         diag_npz = out_dir / "diagnostics.npz"
@@ -164,3 +166,16 @@ def _save_corner(
     fig.savefig(corner_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     logger.info("Saved corner plot to %s", corner_path)
+
+
+def _collect_versions(sampler_type: str) -> dict[str, str]:
+    dists = ["JimGW", "rippleGW"]
+    if sampler_type == "flowmc":
+        dists.append("flowMC")
+    result = {}
+    for dist in dists:
+        try:
+            result[dist] = version(dist)
+        except PackageNotFoundError:
+            pass
+    return result
