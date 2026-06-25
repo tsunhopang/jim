@@ -20,6 +20,7 @@ from typing import Any
 
 import numpy as np
 from jaxtyping import Array, Float, Key
+from jimgw.typing import FloatScalar
 
 from jimgw.samplers.config import BaseSamplerConfig
 
@@ -47,9 +48,9 @@ class Sampler(ABC):
         self,
         *,
         n_dims: int,
-        log_prior_fn: Callable[[Float[Array, " n_dims"]], Float],
-        log_likelihood_fn: Callable[[Float[Array, " n_dims"]], Float],
-        log_posterior_fn: Callable[[Float[Array, " n_dims"]], Float],
+        log_prior_fn: Callable[[Float[Array, " n_dims"]], FloatScalar],
+        log_likelihood_fn: Callable[[Float[Array, " n_dims"]], FloatScalar],
+        log_posterior_fn: Callable[[Float[Array, " n_dims"]], FloatScalar],
         config: BaseSamplerConfig,
     ) -> None:
         self.n_dims = n_dims
