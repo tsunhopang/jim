@@ -9,8 +9,6 @@ Supports four mode combinations selected by
 * ``persistent_sampling=False, temperature_ladder=given`` → fixed-ladder tempered SMC
 """
 
-from __future__ import annotations
-
 import logging
 import pickle
 import shutil

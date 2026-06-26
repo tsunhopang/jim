@@ -5,8 +5,6 @@ spline normalizing flow and a choice of local MCMC kernel, with optional
 parallel tempering.
 """
 
-from __future__ import annotations
-
 import logging
 import pickle
 from typing import Any, Callable, Optional, Type

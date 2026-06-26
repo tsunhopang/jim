@@ -1,7 +1,5 @@
 """BlackJAX nested sampling with bilby/dynesty-style adaptive DE acceptance-walk kernel."""
 
-from __future__ import annotations
-
 import logging
 import pickle
 import shutil

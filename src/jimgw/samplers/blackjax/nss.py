@@ -1,7 +1,5 @@
 """BlackJAX Nested Slice Sampling (NSS)."""
 
-from __future__ import annotations
-
 import logging
 import pickle
 import shutil

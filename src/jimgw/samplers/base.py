@@ -11,8 +11,6 @@ the sampling-space arrays returned by `Sampler.get_samples` back to a
 named prior-space dict via [`Jim.get_samples`][jimgw.core.jim.Jim.get_samples].
 """
 
-from __future__ import annotations
-
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
