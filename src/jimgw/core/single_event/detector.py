@@ -768,6 +768,276 @@ class GroundBased2G(Detector):
         )
 
 
+class QuantumSensor(Detector):
+    """Object representing a quantum sensor (e.g. atom interferometer) sensitive to dark photon fields.
+
+    Attributes:
+        name (str): Name of the sensor.
+        data (Data): Strain data object.
+        psd (PowerSpectrum): Power spectral density object.
+    """
+
+    data: Data
+    psd: PowerSpectrum
+
+    latitude: float = 0
+    longitude: float = 0
+    elevation: float = 0
+
+    tau_Xe: float = 0
+    freq_Xe: float = 0
+
+    xarm_Az: float = 0
+    xarm_Alt: float = 0
+    yarm_Az: float = 0
+    yarm_Alt: float = 0
+
+    optimal_snr: Optional[FloatScalar] = None
+    match_filtered_snr: Optional[Complex] = None
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name})"
+
+    def __init__(
+        self,
+        name: str,
+        latitude: float = 0,
+        longitude: float = 0,
+        elevation: float = 0,
+        tau_Xe: float = 0.0,
+        freq_Xe: float = 0.0,
+        xarm_Az: float = 0.0,
+        xarm_Alt: float = 0.0,
+        yarm_Az: float = 0.0,
+        yarm_Alt: float = 0.0,
+    ):
+        """Initialize a quantum sensor.
+
+        Args:
+            name (str): Name of the sensor.
+            latitude (float, optional): Latitude of the sensor in radians. Defaults to 0.
+            longitude (float, optional): Longitude of the sensor in radians. Defaults to 0.
+            elevation (float, optional): Elevation of the sensor in meters. Defaults to 0.
+            tau_Xe (float, optional): Coherence time in seconds. Defaults to 0.
+            freq_Xe (float, optional): Characteristic frequency in Hz. Defaults to 0.
+            xarm_Az (float, optional): Azimuth of the x-arm in the local horizontal plane, measured
+                from the local longitude direction toward the local latitude direction, in radians. Defaults to 0.
+            xarm_Alt (float, optional): Altitude (elevation angle) of the x-arm above the local
+                horizontal plane, in radians. Defaults to 0.
+            yarm_Az (float, optional): Azimuth of the y-arm in the local horizontal plane, in radians. Defaults to 0.
+            yarm_Alt (float, optional): Altitude of the y-arm above the local horizontal plane, in radians. Defaults to 0.
+        """
+        super().__init__()
+        self.name = name
+        self.latitude = latitude
+        self.longitude = longitude
+        self.elevation = elevation
+        self.tau_Xe = tau_Xe
+        self.freq_Xe = freq_Xe
+        self.xarm_Az = xarm_Az
+        self.xarm_Alt = xarm_Alt
+        self.yarm_Az = yarm_Az
+        self.yarm_Alt = yarm_Alt
+        self.data = Data()
+        self.psd = PowerSpectrum()
+
+    @staticmethod
+    def _get_arm(
+        lat: float, lon: float, Az: float, Alt: float
+    ) -> Float[Array, "3"]:
+        """Construct a sensor arm unit vector in geocentric Cartesian coordinates.
+
+        The arm direction is specified in the local geographic frame at the sensor
+        site, where the local axes are the longitude direction (East), the latitude
+        direction (North), and the vertical (Up). The azimuth ``Az`` is measured
+        from the local longitude (East) direction toward the local latitude (North)
+        direction in the horizontal plane, and ``Alt`` is the elevation angle above
+        that horizontal plane, as illustrated in panel B of the instrument diagram.
+
+        Args:
+            lat (float): Sensor latitude in radians.
+            lon (float): Sensor longitude in radians.
+            Az (float): Arm azimuth in the local horizontal plane, measured from
+                the longitude (East) direction toward the latitude (North) direction,
+                in radians.
+            Alt (float): Arm altitude angle above the local horizontal plane, in radians.
+
+        Returns:
+            Float[Array, "3"]: Unit arm vector in geocentric Cartesian coordinates.
+        """
+        e_lon = jnp.array([-jnp.sin(lon), jnp.cos(lon), 0.0])
+        e_lat = jnp.array(
+            [-jnp.sin(lat) * jnp.cos(lon), -jnp.sin(lat) * jnp.sin(lon), jnp.cos(lat)]
+        )
+        e_h = jnp.array(
+            [jnp.cos(lat) * jnp.cos(lon), jnp.cos(lat) * jnp.sin(lon), jnp.sin(lat)]
+        )
+        return (
+            jnp.cos(Alt) * jnp.cos(Az) * e_lon
+            + jnp.cos(Alt) * jnp.sin(Az) * e_lat
+            + jnp.sin(Alt) * e_h
+        )
+
+    @property
+    def arms(self) -> tuple[Float[Array, "3"], Float[Array, "3"]]:
+        """Get the sensor arm unit vectors in geocentric Cartesian coordinates.
+
+        Returns:
+            tuple[Float[Array, "3"], Float[Array, "3"]]: A tuple containing:
+                - x: X-arm unit vector in geocentric Cartesian coordinates.
+                - y: Y-arm unit vector in geocentric Cartesian coordinates.
+        """
+        x = self._get_arm(self.latitude, self.longitude, self.xarm_Az, self.xarm_Alt)
+        y = self._get_arm(self.latitude, self.longitude, self.yarm_Az, self.yarm_Alt)
+        return x, y
+
+    def delay_from_geocenter(
+        self, ra: FloatScalar, dec: FloatScalar, gmst: FloatScalar
+    ) -> FloatScalar:
+        """Calculate time delay between the sensor and Earth's center.
+
+        Based on XLALArrivaTimeDiff in TimeDelay.c
+        https://lscsoft.docs.ligo.org/lalsuite/lal/group___time_delay__h.html
+
+        Args:
+            ra (Float): Right ascension of the source in radians.
+            dec (Float): Declination of the source in radians.
+            gmst (Float): Greenwich mean sidereal time in radians.
+
+        Returns:
+            Float: Time delay from Earth center in seconds.
+        """
+        delta_d = -self.vertex
+        gmst = jnp.mod(gmst, 2 * jnp.pi)
+        phi = ra - gmst
+        theta = jnp.pi / 2 - dec
+        omega = jnp.array(
+            [
+                jnp.sin(theta) * jnp.cos(phi),
+                jnp.sin(theta) * jnp.sin(phi),
+                jnp.cos(theta),
+            ]
+        )
+        return jnp.einsum("i...,i->...", omega, delta_d) / C_SI
+
+    @property
+    def vertex(self) -> Float[Array, "3"]:
+        """Sensor vertex coordinates in the geocentric Cartesian frame.
+
+        Based on arXiv:gr-qc/0008066 Eqs. (B11-B13); see also Section 2.1 of LIGO-T980044-10.
+
+        Returns:
+            Float[Array, "3"]: Sensor vertex coordinates in geocentric Cartesian coordinates.
+        """
+        lat = self.latitude
+        lon = self.longitude
+        h = self.elevation
+        major, minor = EARTH_SEMI_MAJOR_AXIS, EARTH_SEMI_MINOR_AXIS
+        r = major**2 * (
+            major**2 * jnp.cos(lat) ** 2 + minor**2 * jnp.sin(lat) ** 2
+        ) ** (-0.5)
+        x = (r + h) * jnp.cos(lat) * jnp.cos(lon)
+        y = (r + h) * jnp.cos(lat) * jnp.sin(lon)
+        z = ((minor / major) ** 2 * r + h) * jnp.sin(lat)
+        return jnp.array([x, y, z])
+
+    def fd_response(
+        self,
+        frequency: Float[Array, " n_sample"],
+        B_sky: dict[str, Float[Array, " n_sample"]],
+        params: dict,
+    ) -> Complex[Array, " n_sample"]:
+        r"""Compute the frequency-domain sensor response to a dark photon signal.
+
+        The response is
+
+        $$s(\nu) = \frac{T_2^{-1}}{2\pi i(\nu - f_0) + T_2^{-1}}\bigl[B_y(\nu) - i\,B_x(\nu)\bigr]$$
+
+        where $B_x$ and $B_y$ are the dark photon magnetic field projected onto the
+        x and y arms via dot product, $T_2$ is ``tau_Xe``, and $f_0$ is ``freq_Xe``.
+
+        Args:
+            frequency: Array of frequency samples in Hz.
+            B_sky: Dictionary whose values are the geocentric Cartesian components
+                of the dark photon magnetic field, each of shape ``(n_sample,)``.
+            params: Source parameters including ``ra``, ``dec``, ``gmst``,
+                ``trigger_time``, and ``t_c``.
+
+        Returns:
+            Complex frequency-domain sensor output.
+        """
+        ra, dec, gmst = params["ra"], params["dec"], params["gmst"]
+
+        arm_x, arm_y = self.arms
+
+        # Stack geocentric Cartesian B-field components into shape (3, n_sample).
+        B_vec = jnp.stack(jax.tree_util.tree_leaves(B_sky), axis=0)
+
+        # Project onto each arm direction via dot product.
+        B_x = jnp.einsum("i,i...->...", arm_x, B_vec)
+        B_y = jnp.einsum("i,i...->...", arm_y, B_vec)
+
+        # Lorentzian transfer function centred at freq_Xe with linewidth tau_Xe^{-1}.
+        tau_inv = 1.0 / self.tau_Xe
+        lorentzian = tau_inv / (2j * jnp.pi * (frequency - self.freq_Xe) + tau_inv)
+        projected_signal = lorentzian * (B_y - 1j * B_x)
+
+        # Time shift — identical to GroundBased2G.
+        time_shift = self.delay_from_geocenter(ra, dec, gmst)
+        time_shift += params["trigger_time"] - self.start_time + params["t_c"]
+        phase_shift = jnp.exp(-2j * jnp.pi * frequency * time_shift)
+
+        return projected_signal * phase_shift
+
+    def td_response(
+        self,
+        time: Float[Array, " n_sample"],
+        h_sky: dict[str, Float[Array, " n_sample"]],
+        params: dict,
+    ) -> Float[Array, " n_sample"]:
+        raise NotImplementedError
+
+    def load_and_set_data_from_mat(
+        self,
+        path: str,
+        sig_key: str = "Sig",
+        t_key: str = "t",
+        T2_key: str = "T2",
+        freq_key: str = "freq",
+        start_time: Optional[float] = None,
+    ) -> Data:
+        """Load sensor data from a MATLAB .mat file and set it on this sensor.
+
+        Also updates ``tau_Xe`` and ``freq_Xe`` from the scalar fields stored
+        in the file.
+
+        Args:
+            path: Path to the .mat file.
+            sig_key: Key for the time-domain signal (default: ``"Sig"``).
+            t_key: Key for the time array (default: ``"t"``).
+            T2_key: Key for the coherence time in seconds (default: ``"T2"``).
+            freq_key: Key for the resonance frequency in Hz (default: ``"freq"``).
+            start_time: GPS start time in seconds. If ``None``, taken from the
+                first element of the time array in the file.
+
+        Returns:
+            Data: The loaded Data object, already set on the sensor.
+        """
+        import scipy.io
+        mat = scipy.io.loadmat(path)
+        self.tau_Xe = float(mat[T2_key].flat[0])
+        self.freq_Xe = float(mat[freq_key].flat[0])
+        data = Data.from_mat(
+            path,
+            sig_key=sig_key,
+            t_key=t_key,
+            start_time=start_time,
+            name=self.name,
+        )
+        self.set_data(data)
+        return self.data
+
+
 def get_H1() -> GroundBased2G:
     """Return a [`GroundBased2G`][jimgw.core.single_event.detector.GroundBased2G] instance for LIGO Hanford (H1)."""
     return GroundBased2G(

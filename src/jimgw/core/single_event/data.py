@@ -8,6 +8,7 @@ from jimgw.typing import FloatLike, FloatScalar
 
 from gwpy.timeseries import TimeSeries
 from typing import Optional, Self
+from scipy.io import loadmat
 from scipy.signal import welch
 from scipy.signal.windows import tukey
 from scipy.interpolate import interp1d
@@ -492,11 +493,46 @@ class Data(ABC):
                 float(strain.epoch.value),
                 name,
             )
+        elif path_lower.endswith(".mat"):
+            return cls.from_mat(path, name=name or "")
         else:
             raise ValueError(
                 f"Unsupported file format for '{path}'. "
-                "Supported formats: .npz, .gwf, .gwf.gz, .hdf5, .h5, .hdf, .csv"
+                "Supported formats: .npz, .gwf, .gwf.gz, .hdf5, .h5, .hdf, .csv, .mat"
             )
+
+    @classmethod
+    def from_mat(
+        cls,
+        path: str,
+        sig_key: str = "Sig",
+        t_key: str = "t",
+        start_time: Optional[float] = None,
+        name: str = "",
+    ) -> "Data":
+        """Load time-domain data from a MATLAB .mat file.
+
+        The file is expected to contain a signal array and a time array. The
+        time array is used to derive ``delta_t``; if ``start_time`` is not
+        provided, it is taken from the first element of the time array.
+
+        Args:
+            path: Path to the .mat file.
+            sig_key: Key for the time-domain signal array (default: ``"Sig"``).
+            t_key: Key for the time array (default: ``"t"``).
+            start_time: GPS start time in seconds. If ``None``, defaults to the
+                first element of the time array stored in the file.
+            name: Name for the resulting Data object.
+
+        Returns:
+            Data: Data object built from the signal array.
+        """
+        mat = loadmat(path)
+        td = jnp.array(mat[sig_key].flatten(), dtype=jnp.float64)
+        t = mat[t_key].flatten()
+        delta_t = float(t[1] - t[0])
+        t0 = start_time if start_time is not None else float(t[0])
+        return cls(td=td, delta_t=delta_t, start_time=t0, name=name)
 
     def to_file(self, path: str) -> None:
         """Save the data to a file.
