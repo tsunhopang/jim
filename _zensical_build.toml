@@ -1,0 +1,121 @@
+[project]
+site_name = "Jim"
+site_url = "https://gw-jax-team.github.io/Jim/latest/"
+site_description = "A JAX-based gravitational-wave inference toolkit"
+site_author = "GW JAX Team"
+repo_url = "https://github.com/GW-JAX-Team/Jim"
+repo_name = "GW-JAX-Team/Jim"
+
+extra_javascript = [
+    "javascripts/mathjax.js",
+    "https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js",
+]
+
+nav = [
+    {"Home" = "index.md"},
+    {"Installation" = "installation.md"},
+    {"Quick Start" = "quickstart.md"},
+    {"Tutorials" = [
+        "tutorials/index.md",
+        {"Getting Started" = "tutorials/getting_started.md"},
+        {"GW150914 with CLI" = "tutorials/gw150914_cli.md"},
+    ]},
+    {"Guides" = [
+        "guides/index.md",
+        {"Command Line Interface" = "guides/cli.md"},
+        {"Data" = "guides/data.md"},
+        {"Likelihood" = "guides/likelihood.md"},
+        {"Prior" = "guides/prior.md"},
+        {"Samplers" = "guides/samplers.md"},
+        {"Transforms" = "guides/transforms.md"},
+    ]},
+    {"FAQ" = "FAQ.md"},
+    {"Citing Jim" = "citing.md"},
+    {"Contributing" = "contributing.md"},
+    {"Reference" = [
+        {"jimgw" = [
+            {"core" = [
+                {"base" = "api/jimgw/core/base.md"},
+                {"constants" = "api/jimgw/core/constants.md"},
+                {"jim" = "api/jimgw/core/jim.md"},
+                {"prior" = "api/jimgw/core/prior.md"},
+                {"single_event" = [
+                    {"data" = "api/jimgw/core/single_event/data.md"},
+                    {"detector" = "api/jimgw/core/single_event/detector.md"},
+                    {"likelihood" = "api/jimgw/core/single_event/likelihood.md"},
+                    {"marginalization_config" = "api/jimgw/core/single_event/marginalization_config.md"},
+                    {"polarization" = "api/jimgw/core/single_event/polarization.md"},
+                    {"prior" = "api/jimgw/core/single_event/prior.md"},
+                    {"time_utils" = "api/jimgw/core/single_event/time_utils.md"},
+                    {"transform_utils" = "api/jimgw/core/single_event/transform_utils.md"},
+                    {"transforms" = "api/jimgw/core/single_event/transforms.md"},
+                    {"utils" = "api/jimgw/core/single_event/utils.md"},
+                    {"waveform" = "api/jimgw/core/single_event/waveform.md"},
+                ]},
+                {"transforms" = "api/jimgw/core/transforms.md"},
+                {"utils" = "api/jimgw/core/utils.md"},
+            ]},
+            {"samplers" = [
+                {"base" = "api/jimgw/samplers/base.md"},
+                {"blackjax" = [
+                    {"ns_aw" = "api/jimgw/samplers/blackjax/ns_aw.md"},
+                    {"nss" = "api/jimgw/samplers/blackjax/nss.md"},
+                    {"smc" = "api/jimgw/samplers/blackjax/smc.md"},
+                ]},
+                {"config" = "api/jimgw/samplers/config.md"},
+                {"flowmc" = "api/jimgw/samplers/flowmc.md"},
+                {"periodic" = "api/jimgw/samplers/periodic.md"},
+            ]},
+            {"typing" = "api/jimgw/typing.md"},
+        ]},
+    ]},
+]
+
+[project.extra.version]
+provider = "mike"
+default = "stable"
+
+[project.theme]
+variant = "modern"
+features = [
+    "content.code.copy",
+    "navigation.instant",
+    "navigation.tabs",
+    "navigation.top",
+    "toc.follow",
+    "header.autohide",
+]
+palette = [
+    {scheme = "slate", toggle = {icon = "material/brightness-4", name = "Switch to light mode"}},
+    {scheme = "default", toggle = {icon = "material/brightness-7", name = "Switch to dark mode"}},
+]
+
+[project.markdown_extensions.pymdownx.arithmatex]
+generic = true
+
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [{name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format"}]
+
+[project.markdown_extensions.admonition]
+
+[project.markdown_extensions.toc]
+permalink = "¤"
+toc_depth = 4
+
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["src"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "google"
+filters = ["!^_[^_]", "!^logger$"]
+inherited_members = false
+group_by_category = true
+show_category_heading = false
+summary = {attributes = true, functions = true}
+show_root_heading = false
+show_root_full_path = false
+show_if_no_docstring = false
+show_signature_annotations = true
+show_source = false
+members_order = ["__all__", "alphabetical"]
+heading_level = 3
