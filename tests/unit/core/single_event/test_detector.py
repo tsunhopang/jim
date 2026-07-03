@@ -5,10 +5,14 @@ import jax.numpy as jnp
 from itertools import combinations
 from pathlib import Path
 from jimgw.core.single_event.data import PowerSpectrum
-from jimgw.core.single_event.detector import get_ET, get_H1
+from jimgw.core.single_event.detector import get_ET, get_H1, get_quantum_sensor_preset
 from jimgw.core.constants import EARTH_SEMI_MAJOR_AXIS, EARTH_SEMI_MINOR_AXIS
+from jimgw.core.single_event.polarization import rotated_wave_basis
+from jimgw.core.single_event.time_utils import (
+    greenwich_mean_sidereal_time as compute_gmst,
+)
 from jimgw.core.single_event.waveform import RippleIMRPhenomD
-from tests.utils import assert_all_in_range
+from tests.utils import assert_all_finite, assert_all_in_range
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent.parent / "fixtures"
 
@@ -199,3 +203,80 @@ class TestET:
                 f"{ifo_a.name}↔{ifo_b.name}: {dist:.0f} m "
                 f"(expected ~{self.ET_ARM_LENGTH_M:.0f} m ± 50 m)"
             )
+
+
+# ---------------------------------------------------------------------------
+# QuantumSensor
+# ---------------------------------------------------------------------------
+
+
+class TestQuantumSensor:
+    """Tests for QuantumSensor.fd_response's psi-rotated field projection."""
+
+    def setup_method(self):
+        self.qs = get_quantum_sensor_preset()["QS-I"]
+        self.qs.tau_Xe = 56.98406646
+        self.qs.freq_Xe = 10.05450347
+
+    def _params(self, **overrides):
+        params = {
+            "ra": 1.5,
+            "dec": 0.5,
+            "psi": 0.3,
+            "gmst": float(compute_gmst(GPS_TIME)),
+            "trigger_time": GPS_TIME,
+            "t_c": 0.0,
+        }
+        params.update(overrides)
+        return params
+
+    def _B_sky(self, n=32):
+        key = jax.random.PRNGKey(0)
+        k1, k2 = jax.random.split(key)
+        B_p = jax.random.normal(k1, (n,)) + 1j * jax.random.normal(k1, (n,))
+        B_c = jax.random.normal(k2, (n,)) + 1j * jax.random.normal(k2, (n,))
+        return {"p": B_p, "c": B_c}
+
+    def test_finite_output(self):
+        frequency = jnp.linspace(5.0, 15.0, 32)
+        B_sky = self._B_sky(32)
+        out = self.qs.fd_response(frequency, B_sky, self._params())
+        assert out.shape == frequency.shape
+        assert_all_finite(out)
+
+    def test_psi_changes_response(self):
+        """Regression guard: psi must actually affect the projected signal."""
+        frequency = jnp.linspace(5.0, 15.0, 32)
+        B_sky = self._B_sky(32)
+        out_psi0 = self.qs.fd_response(frequency, B_sky, self._params(psi=0.0))
+        out_psi1 = self.qs.fd_response(
+            frequency, B_sky, self._params(psi=jnp.pi / 4)
+        )
+        assert not jnp.allclose(out_psi0, out_psi1)
+
+    def test_matches_manual_projection(self):
+        """fd_response's arm projection should match a hand-built B_vec via
+        rotated_wave_basis."""
+        frequency = jnp.linspace(5.0, 15.0, 8)
+        B_sky = self._B_sky(8)
+        params = self._params()
+
+        m, n = rotated_wave_basis(params["ra"], params["dec"], params["psi"], params["gmst"])
+        B_vec = jnp.einsum("i,f->if", m, B_sky["p"]) + jnp.einsum(
+            "i,f->if", n, B_sky["c"]
+        )
+        arm_x, arm_y = self.qs.arms
+        B_x = jnp.einsum("i,if->f", arm_x, B_vec)
+        B_y = jnp.einsum("i,if->f", arm_y, B_vec)
+        tau_inv = 1.0 / self.qs.tau_Xe
+        lorentzian = tau_inv / (2j * jnp.pi * (frequency - self.qs.freq_Xe) + tau_inv)
+        time_shift = self.qs.delay_from_geocenter(
+            params["ra"], params["dec"], params["gmst"]
+        )
+        time_shift += params["trigger_time"] - self.qs.start_time + params["t_c"]
+        expected = lorentzian * (B_y - 1j * B_x) * jnp.exp(
+            -2j * jnp.pi * frequency * time_shift
+        )
+
+        actual = self.qs.fd_response(frequency, B_sky, params)
+        assert jnp.allclose(actual, expected)

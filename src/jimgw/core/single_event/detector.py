@@ -18,7 +18,7 @@ from jimgw.core.constants import (
     EARTH_SEMI_MINOR_AXIS,
     DEG_TO_RAD,
 )
-from jimgw.core.single_event.polarization import Polarization
+from jimgw.core.single_event.polarization import Polarization, rotated_wave_basis
 from jimgw.core.single_event.data import Data, PowerSpectrum
 from jimgw.core.single_event.utils import inner_product, complex_inner_product
 from jimgw.core.single_event.time_utils import (
@@ -958,24 +958,32 @@ class QuantumSensor(Detector):
 
         Args:
             frequency: Array of frequency samples in Hz.
-            B_sky: Dictionary whose values are the geocentric Cartesian components
-                of the dark photon magnetic field, each of shape ``(n_sample,)``.
-            params: Source parameters including ``ra``, ``dec``, ``gmst``,
-                ``trigger_time``, and ``t_c``.
+            B_sky: Dictionary with keys ``"p"``/``"c"`` holding the two linear
+                polarization amplitudes of the dark photon field (along the
+                un-rotated sky-frame theta-hat/phi-hat directions), each of
+                shape ``(n_sample,)``. Reuses the GW plus/cross key naming so
+                the same likelihood machinery can thread the waveform output
+                straight through.
+            params: Source parameters including ``ra``, ``dec``, ``psi``,
+                ``gmst``, ``trigger_time``, and ``t_c``.
 
         Returns:
             Complex frequency-domain sensor output.
         """
-        ra, dec, gmst = params["ra"], params["dec"], params["gmst"]
+        ra, dec, psi, gmst = params["ra"], params["dec"], params["psi"], params["gmst"]
 
         arm_x, arm_y = self.arms
 
-        # Stack geocentric Cartesian B-field components into shape (3, n_sample).
-        B_vec = jnp.stack(jax.tree_util.tree_leaves(B_sky), axis=0)
+        # Rotate the sky-frame basis by the polarization angle psi, then embed
+        # the field's two linear polarizations into geocentric Cartesian coords.
+        m, n = rotated_wave_basis(ra, dec, psi, gmst)
+        B_vec = jnp.einsum("i,f->if", m, B_sky["p"]) + jnp.einsum(
+            "i,f->if", n, B_sky["c"]
+        )
 
         # Project onto each arm direction via dot product.
-        B_x = jnp.einsum("i,i...->...", arm_x, B_vec)
-        B_y = jnp.einsum("i,i...->...", arm_y, B_vec)
+        B_x = jnp.einsum("i,if->f", arm_x, B_vec)
+        B_y = jnp.einsum("i,if->f", arm_y, B_vec)
 
         # Lorentzian transfer function centred at freq_Xe with linewidth tau_Xe^{-1}.
         tau_inv = 1.0 / self.tau_Xe

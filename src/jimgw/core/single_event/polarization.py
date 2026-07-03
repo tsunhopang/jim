@@ -8,6 +8,38 @@ from jimgw.typing import FloatScalar
 KNOWN_POLS = "pcxybl"
 
 
+def rotated_wave_basis(
+    ra: FloatScalar, dec: FloatScalar, psi: FloatScalar, gmst: FloatScalar
+) -> tuple[Float[Array, "3"], Float[Array, "3"]]:
+    """Sky-frame basis vectors (theta-hat, phi-hat), rotated by polarization
+    angle psi about the propagation direction.
+
+    Args:
+        ra (Float): Right ascension in radians.
+        dec (Float): Declination in radians.
+        psi (Float): Polarization angle in radians.
+        gmst (Float): Greenwich mean sidereal time in radians.
+
+    Returns:
+        tuple[Float[Array, "3"], Float[Array, "3"]]: Rotated basis vectors (m, n).
+    """
+    gmst = jnp.mod(gmst, 2 * jnp.pi)
+    phi = ra - gmst
+    theta = jnp.pi / 2 - dec
+
+    u = jnp.array(
+        [
+            jnp.cos(phi) * jnp.cos(theta),
+            jnp.cos(theta) * jnp.sin(phi),
+            -jnp.sin(theta),
+        ]
+    )
+    v = jnp.array([-jnp.sin(phi), jnp.cos(phi), phi * 0.0])
+    m = -u * jnp.sin(psi) - v * jnp.cos(psi)
+    n = -u * jnp.cos(psi) + v * jnp.sin(psi)
+    return m, n
+
+
 class Polarization(eqx.Module):
     """Object defining a given polarization mode, with utilities to produce
     corresponding tensor in an Earth centric frame.
@@ -70,19 +102,5 @@ class Polarization(eqx.Module):
         Returns:
             Float[Array, "3 3"]: 3x3 polarization tensor.
         """
-        gmst = jnp.mod(gmst, 2 * jnp.pi)
-        phi = ra - gmst
-        theta = jnp.pi / 2 - dec
-
-        u = jnp.array(
-            [
-                jnp.cos(phi) * jnp.cos(theta),
-                jnp.cos(theta) * jnp.sin(phi),
-                -jnp.sin(theta),
-            ]
-        )
-        v = jnp.array([-jnp.sin(phi), jnp.cos(phi), phi * 0.0])
-        m = -u * jnp.sin(psi) - v * jnp.cos(psi)
-        n = -u * jnp.cos(psi) + v * jnp.sin(psi)
-
+        m, n = rotated_wave_basis(ra, dec, psi, gmst)
         return self.tensor_from_basis(m, n)

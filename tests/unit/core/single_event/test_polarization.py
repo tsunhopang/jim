@@ -3,8 +3,45 @@
 import jax.numpy as jnp
 import pytest
 
-from jimgw.core.single_event.polarization import Polarization, KNOWN_POLS
+from jimgw.core.single_event.polarization import (
+    KNOWN_POLS,
+    Polarization,
+    rotated_wave_basis,
+)
 from tests.utils import assert_all_finite
+
+
+class TestRotatedWaveBasis:
+    """Test suite for the rotated_wave_basis helper."""
+
+    def test_shape_and_finite(self):
+        m, n = rotated_wave_basis(ra=1.5, dec=0.5, psi=0.3, gmst=2.0)
+        assert m.shape == (3,)
+        assert n.shape == (3,)
+        assert_all_finite(m)
+        assert_all_finite(n)
+
+    def test_orthonormal(self):
+        m, n = rotated_wave_basis(ra=1.5, dec=0.5, psi=0.3, gmst=2.0)
+        assert jnp.allclose(jnp.linalg.norm(m), 1.0)
+        assert jnp.allclose(jnp.linalg.norm(n), 1.0)
+        assert jnp.allclose(jnp.dot(m, n), 0.0, atol=1e-7)
+
+    def test_matches_tensor_from_sky(self):
+        """m, n should reproduce exactly what tensor_from_sky uses internally."""
+        ra, dec, psi, gmst = 1.5, 0.5, 0.3, 2.0
+        m, n = rotated_wave_basis(ra, dec, psi, gmst)
+
+        pol = Polarization("p")
+        expected = pol.tensor_from_basis(m, n)
+        actual = pol.tensor_from_sky(ra, dec, psi, gmst)
+        assert jnp.allclose(actual, expected)
+
+    def test_psi_rotation_changes_basis(self):
+        m0, n0 = rotated_wave_basis(ra=1.5, dec=0.5, psi=0.0, gmst=2.0)
+        m1, n1 = rotated_wave_basis(ra=1.5, dec=0.5, psi=jnp.pi / 4, gmst=2.0)
+        assert not jnp.allclose(m0, m1)
+        assert not jnp.allclose(n0, n1)
 
 
 class TestPolarization:
