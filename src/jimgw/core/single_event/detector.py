@@ -1181,3 +1181,85 @@ def get_detector_preset() -> dict[str, GroundBased2G | list[GroundBased2G]]:
         "ET": get_ET(),
         "CE": get_CE(),
     }
+
+
+def get_QS_I() -> QuantumSensor:
+    """Return a [`QuantumSensor`][jimgw.core.single_event.detector.QuantumSensor] instance for Hefei Station I."""
+    return QuantumSensor(
+        "QS-I",
+        latitude=31.835 * DEG_TO_RAD,
+        longitude=117.262 * DEG_TO_RAD,
+        xarm_Az=0.0,
+        xarm_Alt=0.0,
+        yarm_Az=0.0,
+        yarm_Alt=90.0 * DEG_TO_RAD,
+    )
+
+
+def get_QS_II() -> QuantumSensor:
+    """Return a [`QuantumSensor`][jimgw.core.single_event.detector.QuantumSensor] instance for Hefei Station II."""
+    return QuantumSensor(
+        "QS-II",
+        latitude=31.835 * DEG_TO_RAD,
+        longitude=117.262 * DEG_TO_RAD,
+        xarm_Az=0.0,
+        xarm_Alt=0.0,
+        yarm_Az=0.0,
+        yarm_Alt=-90.0 * DEG_TO_RAD,
+    )
+
+
+def get_QS_III() -> QuantumSensor:
+    """Return a [`QuantumSensor`][jimgw.core.single_event.detector.QuantumSensor] instance for Hefei Station III."""
+    return QuantumSensor(
+        "QS-III",
+        latitude=31.836 * DEG_TO_RAD,
+        longitude=117.265 * DEG_TO_RAD,
+        xarm_Az=270.0 * DEG_TO_RAD,
+        xarm_Alt=0.0,
+        yarm_Az=0.0,
+        yarm_Alt=-90.0 * DEG_TO_RAD,
+    )
+
+
+def get_QS_IV() -> QuantumSensor:
+    """Return a [`QuantumSensor`][jimgw.core.single_event.detector.QuantumSensor] instance for Hefei Station IV."""
+    return QuantumSensor(
+        "QS-IV",
+        latitude=31.836 * DEG_TO_RAD,
+        longitude=117.265 * DEG_TO_RAD,
+        xarm_Az=180.0 * DEG_TO_RAD,
+        xarm_Alt=0.0,
+        yarm_Az=0.0,
+        yarm_Alt=-90.0 * DEG_TO_RAD,
+    )
+
+
+def get_QS_V() -> QuantumSensor:
+    """Return a [`QuantumSensor`][jimgw.core.single_event.detector.QuantumSensor] instance for Hangzhou Station V."""
+    return QuantumSensor(
+        "QS-V",
+        latitude=30.226 * DEG_TO_RAD,
+        longitude=120.031 * DEG_TO_RAD,
+        xarm_Az=90.0 * DEG_TO_RAD,
+        xarm_Alt=0.0,
+        yarm_Az=0.0,
+        yarm_Alt=90.0 * DEG_TO_RAD,
+    )
+
+
+def get_quantum_sensor_preset() -> dict[str, QuantumSensor]:
+    """Return a dictionary of pre-configured quantum sensor instances.
+
+    Returns:
+        dict: Mapping of sensor name to
+            [`QuantumSensor`][jimgw.core.single_event.detector.QuantumSensor] instance.
+            Keys are ``"QS-I"`` through ``"QS-V"``.
+    """
+    return {
+        "QS-I": get_QS_I(),
+        "QS-II": get_QS_II(),
+        "QS-III": get_QS_III(),
+        "QS-IV": get_QS_IV(),
+        "QS-V": get_QS_V(),
+    }
