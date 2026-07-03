@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import pytest
 
 from jimgw.core.single_event.waveform import (
+    RippleDarkPhotonWaveform,
     RippleIMRPhenomD,
     RippleIMRPhenomPv2,
     RippleTaylorF2,
@@ -46,6 +47,12 @@ def phenomPv2_params():
         "phase_c": 0.0,
         "iota": 0.5,
     }
+
+
+@pytest.fixture
+def dark_photon_params(phenomD_params):
+    """Standard parameter set for RippleDarkPhotonWaveform (IMRPhenomD base) tests."""
+    return {**phenomD_params, "sigma_1": 0.1, "sigma_2": -0.05}
 
 
 @pytest.fixture
@@ -313,6 +320,48 @@ class TestRippleIMRPhenomD_NRTidalv2:
 
         frequencies = jnp.linspace(20.0, 512.0, 100)
         h = waveform(frequencies, nrtidal_params_lambda12)
+
+        assert_all_finite(h["p"])
+        assert_all_finite(h["c"])
+
+
+class TestRippleDarkPhotonWaveform:
+    """Test suite for RippleDarkPhotonWaveform (base=IMRPhenomD) waveform model."""
+
+    def test_parameter_names(self):
+        """parameter_names should append sigma_1, sigma_2 to the base waveform's."""
+        base = RippleIMRPhenomD(f_ref=20.0)
+        waveform = RippleDarkPhotonWaveform(base)
+        assert waveform.parameter_names == (*base.parameter_names, "sigma_1", "sigma_2")
+
+    def test_initialization_and_call(self, dark_photon_params):
+        """Test waveform initialization and basic generation."""
+        waveform = RippleDarkPhotonWaveform(RippleIMRPhenomD(f_ref=20.0))
+        assert callable(waveform)
+
+        frequencies = jnp.linspace(20.0, 512.0, 100)
+        h = waveform(frequencies, dark_photon_params)
+
+        assert "p" in h
+        assert "c" in h
+        assert h["p"].shape == frequencies.shape
+        assert h["c"].shape == frequencies.shape
+
+        assert jnp.any(jnp.abs(h["p"]) > 0)
+        assert jnp.any(jnp.abs(h["c"]) > 0)
+        assert_all_finite(h["p"])
+        assert_all_finite(h["c"])
+
+    def test_jit_compilation(self, dark_photon_params):
+        """Test that waveform generation can be JIT compiled."""
+        waveform = RippleDarkPhotonWaveform(RippleIMRPhenomD(f_ref=20.0))
+
+        @jax.jit
+        def generate_waveform(frequencies, params):
+            return waveform(frequencies, params)
+
+        frequencies = jnp.linspace(20.0, 512.0, 50)
+        h = generate_waveform(frequencies, dark_photon_params)
 
         assert_all_finite(h["p"])
         assert_all_finite(h["c"])

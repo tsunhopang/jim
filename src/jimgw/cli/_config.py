@@ -133,6 +133,7 @@ Approximant = Literal[
     "IMRPhenomXP",
     "IMRPhenomXPHM",
     "SineGaussian",
+    "DarkPhotonWaveform",
 ]
 
 
@@ -140,6 +141,22 @@ class WaveformConfig(BaseModel):
     model_config = {"extra": "forbid"}
     approximant: Approximant
     f_ref: float = 20.0
+    base_approximant: Approximant | None = None
+
+    @model_validator(mode="after")
+    def _check_base_approximant(self) -> "WaveformConfig":
+        if self.approximant == "DarkPhotonWaveform":
+            if self.base_approximant is None:
+                raise ValueError(
+                    "DarkPhotonWaveform requires base_approximant to be set"
+                )
+            if self.base_approximant == "DarkPhotonWaveform":
+                raise ValueError("base_approximant cannot be DarkPhotonWaveform")
+        elif self.base_approximant is not None:
+            raise ValueError(
+                "base_approximant is only valid when approximant is DarkPhotonWaveform"
+            )
+        return self
 
 
 # ---------------------------------------------------------------------------

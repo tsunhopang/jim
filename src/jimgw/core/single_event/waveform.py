@@ -10,6 +10,7 @@ from ripplegw import (
     IMRPhenomXP,
     IMRPhenomXPHM,
     SineGaussian,
+    DarkPhotonWaveform,
 )
 
 RippleTaylorF2 = TaylorF2
@@ -23,6 +24,7 @@ RippleIMRPhenomXHM = IMRPhenomXHM
 RippleIMRPhenomXP = IMRPhenomXP
 RippleIMRPhenomXPHM = IMRPhenomXPHM
 RippleSineGaussian = SineGaussian
+RippleDarkPhotonWaveform = DarkPhotonWaveform
 
 __all__ = [
     "RippleTaylorF2",
@@ -36,4 +38,5 @@ __all__ = [
     "RippleIMRPhenomXP",
     "RippleIMRPhenomXPHM",
     "RippleSineGaussian",
+    "RippleDarkPhotonWaveform",
 ]
