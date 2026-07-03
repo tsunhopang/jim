@@ -58,6 +58,9 @@ class Detector(ABC):
     _sliced_fd_data: Float[Array, " n_sample"] = jnp.array([])
     _sliced_psd: Float[Array, " n_sample"] = jnp.array([])
 
+    optimal_snr: Optional[FloatScalar] = None
+    match_filtered_snr: Optional[Complex] = None
+
     @property
     def start_time(self) -> float:
         """GPS start time of the data segment."""
@@ -166,6 +169,178 @@ class Detector(ABC):
         self.optimal_snr = None
         self.match_filtered_snr = None
 
+    def _equal_data_psd_frequencies(self) -> Bool:
+        """Check if the frequencies of the data and PSD match.
+        A helper function for `set_data` and `set_psd`.
+
+        Return:
+            Bool: True if the frequencies match, False otherwise.
+        """
+        if self.psd.is_empty or self.data.is_empty:
+            # In this case, we simply skip the check
+            return True
+        if self.psd.n_freq != self.data.n_freq:
+            # Cannot proceed comparison, needs interpolation
+            return False
+        if (self.psd.frequencies == self.data.frequencies).all():
+            # Frequencies match
+            return True
+        # This case means the frequencies are different
+        return False
+
+    def set_data(self, data: Data | Array, **kws) -> None:
+        """Add data to the detector.
+
+        Args:
+            data (Data | Array): Data to be added to the detector, either as a `Data` object
+                or as a timeseries array.
+            **kws (dict): Additional keyword arguments to pass to `Data` constructor.
+
+        Returns:
+            None
+        """
+        if isinstance(data, Data):
+            self.data = data
+        else:
+            self.data = Data(data, **kws)
+        # Assert PSD frequencies agree with data
+        if not ((self.psd is None) or self._equal_data_psd_frequencies()):
+            self.psd = self.psd.interpolate(self.data.frequencies)
+
+    def set_psd(self, psd: PowerSpectrum | Array, **kws) -> None:
+        """Add PSD to the detector.
+
+        Args:
+            psd (PowerSpectrum | Array): PSD to be added to the detector, either as a `PowerSpectrum`
+                object or as a timeseries array.
+            **kws (dict): Additional keyword arguments to pass to `PowerSpectrum` constructor.
+
+        Returns:
+            None
+        """
+        if isinstance(psd, PowerSpectrum):
+            self.psd = psd
+        else:
+            # not clear if we want to support this
+            self.psd = PowerSpectrum(psd, **kws)
+        # Assert PSD frequencies agree with data frequencies
+        if not ((self.data is None) or self._equal_data_psd_frequencies()):
+            self.psd = self.psd.interpolate(self.data.frequencies)
+
+    def inject_signal(
+        self,
+        duration: float,
+        sampling_frequency: float,
+        trigger_time: float,
+        waveform_model,
+        parameters: dict[str, float],
+        f_min: float,
+        f_max: float,
+        start_time: Optional[float] = None,
+        zero_noise: bool = False,
+        rng_key: Optional[Key] = None,
+    ) -> None:
+        """Inject a signal into the detector data.
+
+        Note: The power spectral density must be set beforehand.
+
+        Args:
+            duration (float): Duration of the data segment in seconds.
+            sampling_frequency (float): Sampling frequency in Hz.
+            trigger_time (float): GPS time of the event trigger. Used to stamp
+                ``trigger_time`` and derive ``gmst`` for the waveform projection,
+                mirroring the behavior of ``TransientLikelihoodFD``.
+            waveform_model: The waveform model to be injected.
+            parameters (dict): Dictionary of likelihood-space source parameters.
+            f_min (float): Minimum frequency in Hz. The waveform is zeroed below
+                this frequency.
+            f_max (float): Maximum frequency in Hz. Should be set to the same
+                value used in the likelihood.
+            start_time (Optional[float], optional): GPS start time of the
+                data buffer in seconds. If None, defaults to
+                ``trigger_time - duration + 2.0`` (2 s of data after the trigger).
+                Defaults to None.
+
+        Returns:
+            None
+        """
+        # Derive start_time if not provided
+        if start_time is None:
+            start_time = trigger_time - duration + 2.0
+            logger.info(
+                "start_time not provided. Defaulting to trigger_time - duration + 2.0 = %.3f s.",
+                start_time,
+            )
+
+        # Make a copy of the parameters to avoid modifying the original dictionary
+        params = parameters.copy()
+
+        # Stamp trigger_time and gmst — mirrors TransientLikelihoodFD.evaluate()
+        params["trigger_time"] = float(trigger_time)
+        params["gmst"] = float(compute_gmst(trigger_time))
+
+        # 1. Set empty data to initialize the detector
+        n_times = int(jnp.round(duration * sampling_frequency))
+        self.set_data(
+            Data(
+                name=f"{self.name}_empty",
+                td=jnp.zeros(n_times),
+                delta_t=1 / sampling_frequency,
+                start_time=start_time,
+            )
+        )
+
+        # Set frequency bounds before evaluating the waveform
+        self.set_frequency_bounds(f_min, f_max)
+
+        # 2. Compute the projected strain from parameters
+        polarisations = waveform_model(self.frequencies, params)
+        projected_strain = self.fd_response(self.frequencies, polarisations, params)
+
+        # 3. Set the new data
+        strain_data = jnp.where(self.frequency_mask, projected_strain, 0.0 + 0.0j)
+        if not zero_noise:
+            if rng_key is None:
+                seed = int(time.time())
+                rng_key = jax.random.key(seed)
+                logger.info(
+                    "No rng_key provided for noise simulation. Using time-based key with seed=%d.",
+                    seed,
+                )
+            noise = self.psd.simulate_data(rng_key)
+            strain_data += jnp.where(self.frequency_mask, noise, 0.0 + 0.0j)
+
+        self.set_data(
+            Data.from_fd(
+                name=f"{self.name}_injected",
+                fd_strain=strain_data,
+                frequencies=self.frequencies,
+                start_time=self.data.start_time,
+            )
+        )
+
+        # 4. Update the sliced data and psd with the (potentially) new frequency bounds
+        self.set_frequency_bounds()
+        masked_signal = projected_strain[self.frequency_mask]
+
+        df = self.sliced_frequencies[1] - self.sliced_frequencies[0]
+        _optimal_snr_sq = inner_product(
+            masked_signal, masked_signal, self.sliced_psd, df
+        )
+        optimal_snr = _optimal_snr_sq**0.5
+        match_filtered_snr = complex_inner_product(
+            masked_signal, self.sliced_fd_data, self.sliced_psd, df
+        )
+        match_filtered_snr /= optimal_snr
+
+        # Save as attributes
+        self.optimal_snr = optimal_snr
+        self.match_filtered_snr = match_filtered_snr
+
+        logger.info(f"For detector {self.name}, the injected signal has:")
+        logger.info(f"  - Optimal SNR: {optimal_snr:.4f}")
+        logger.info(f"  - Match filtered SNR: {match_filtered_snr:.4f}")
+
     @property
     def sliced_frequencies(self) -> Float[Array, " n_freq"]:
         """Get frequency-domain data slice based on frequency bounds.
@@ -239,9 +414,6 @@ class GroundBased2G(Detector):
     xarm_tilt: float = 0
     yarm_tilt: float = 0
     elevation: float = 0
-
-    optimal_snr: Optional[FloatScalar] = None
-    match_filtered_snr: Optional[Complex] = None
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"
@@ -792,9 +964,6 @@ class QuantumSensor(Detector):
     yarm_Az: float = 0
     yarm_Alt: float = 0
 
-    optimal_snr: Optional[FloatScalar] = None
-    match_filtered_snr: Optional[Complex] = None
-
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"
 
@@ -1044,6 +1213,134 @@ class QuantumSensor(Detector):
         )
         self.set_data(data)
         return self.data
+
+    def inject_signal(
+        self,
+        duration: float,
+        sampling_frequency: float,
+        trigger_time: float,
+        waveform_model,
+        parameters: dict[str, float],
+        f_min: float,
+        f_max: float,
+        start_time: Optional[float] = None,
+        zero_noise: bool = False,
+        rng_key: Optional[Key] = None,
+    ) -> None:
+        """Inject a dark-photon signal into the quantum sensor data.
+
+        Note: The power spectral density must be set beforehand.
+
+        Unlike `GroundBased2G.inject_signal`, the waveform is evaluated only
+        over the in-band frequencies (``[f_min, f_max]``) rather than the
+        full 0-to-Nyquist range. Waveforms such as
+        `RippleDarkPhotonWaveform` phase-unwrap across the whole input
+        array; a NaN at the f=0 bin (from the wrapped base waveform) would
+        otherwise propagate through the unwrap and contaminate every
+        frequency, including in-band ones.
+
+        Args:
+            duration (float): Duration of the data segment in seconds.
+            sampling_frequency (float): Sampling frequency in Hz.
+            trigger_time (float): GPS time of the event trigger. Used to stamp
+                ``trigger_time`` and derive ``gmst`` for the waveform projection,
+                mirroring the behavior of ``TransientLikelihoodFD``.
+            waveform_model: The waveform model to be injected.
+            parameters (dict): Dictionary of likelihood-space source parameters.
+            f_min (float): Minimum frequency in Hz. The waveform is only
+                evaluated at or above this frequency.
+            f_max (float): Maximum frequency in Hz. Should be set to the same
+                value used in the likelihood.
+            start_time (Optional[float], optional): GPS start time of the
+                data buffer in seconds. If None, defaults to
+                ``trigger_time - duration + 2.0`` (2 s of data after the trigger).
+                Defaults to None.
+
+        Returns:
+            None
+        """
+        # Derive start_time if not provided
+        if start_time is None:
+            start_time = trigger_time - duration + 2.0
+            logger.info(
+                "start_time not provided. Defaulting to trigger_time - duration + 2.0 = %.3f s.",
+                start_time,
+            )
+
+        # Make a copy of the parameters to avoid modifying the original dictionary
+        params = parameters.copy()
+
+        # Stamp trigger_time and gmst — mirrors TransientLikelihoodFD.evaluate()
+        params["trigger_time"] = float(trigger_time)
+        params["gmst"] = float(compute_gmst(trigger_time))
+
+        # 1. Set empty data to initialize the sensor
+        n_times = int(jnp.round(duration * sampling_frequency))
+        self.set_data(
+            Data(
+                name=f"{self.name}_empty",
+                td=jnp.zeros(n_times),
+                delta_t=1 / sampling_frequency,
+                start_time=start_time,
+            )
+        )
+
+        # Set frequency bounds before evaluating the waveform
+        self.set_frequency_bounds(f_min, f_max)
+
+        # 2. Compute the projected strain from parameters, evaluating the
+        # waveform only over the in-band frequencies (see docstring note).
+        band_frequencies = self.sliced_frequencies
+        polarisations = waveform_model(band_frequencies, params)
+        band_signal = self.fd_response(band_frequencies, polarisations, params)
+
+        strain_data = (
+            jnp.zeros_like(self.frequencies, dtype=complex)
+            .at[jnp.nonzero(self.frequency_mask)[0]]
+            .set(band_signal)
+        )
+        if not zero_noise:
+            if rng_key is None:
+                seed = int(time.time())
+                rng_key = jax.random.key(seed)
+                logger.info(
+                    "No rng_key provided for noise simulation. Using time-based key with seed=%d.",
+                    seed,
+                )
+            noise = self.psd.simulate_data(rng_key)
+            strain_data += jnp.where(self.frequency_mask, noise, 0.0 + 0.0j)
+
+        # 3. Set the new data
+        self.set_data(
+            Data.from_fd(
+                name=f"{self.name}_injected",
+                fd_strain=strain_data,
+                frequencies=self.frequencies,
+                start_time=self.data.start_time,
+            )
+        )
+
+        # 4. Update the sliced data and psd with the (potentially) new frequency bounds
+        self.set_frequency_bounds()
+        masked_signal = band_signal
+
+        df = self.sliced_frequencies[1] - self.sliced_frequencies[0]
+        _optimal_snr_sq = inner_product(
+            masked_signal, masked_signal, self.sliced_psd, df
+        )
+        optimal_snr = _optimal_snr_sq**0.5
+        match_filtered_snr = complex_inner_product(
+            masked_signal, self.sliced_fd_data, self.sliced_psd, df
+        )
+        match_filtered_snr /= optimal_snr
+
+        # Save as attributes
+        self.optimal_snr = optimal_snr
+        self.match_filtered_snr = match_filtered_snr
+
+        logger.info(f"For detector {self.name}, the injected signal has:")
+        logger.info(f"  - Optimal SNR: {optimal_snr:.4f}")
+        logger.info(f"  - Match filtered SNR: {match_filtered_snr:.4f}")
 
 
 def get_H1() -> GroundBased2G:
