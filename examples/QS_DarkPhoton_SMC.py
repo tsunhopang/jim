@@ -148,9 +148,9 @@ jim = Jim(
     likelihood,
     prior,
     sampler_config=BlackJAXSMCConfig(
-        n_particles=5000,
-        n_mcmc_steps_per_dim=100,
-        target_ess_fraction=0.6,
+        n_particles=10000,
+        n_mcmc_steps_per_dim=10,
+        target_ess_fraction=0.8,
     ),
     verbose=True,
 )
