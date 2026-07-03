@@ -13,6 +13,7 @@ import corner
 import numpy as np
 import jax
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 
 jax.config.update("jax_enable_x64", True)
 
@@ -25,6 +26,7 @@ from jimgw.core.single_event.waveform import RippleDarkPhotonWaveform, RippleIMR
 from jimgw.samplers.config import BlackJAXSMCConfig
 
 TARGET_OPTIMAL_SNR = 30.0
+OUTDIR = Path(__file__).parent
 
 # --- Sensor setup ---
 
@@ -148,9 +150,14 @@ jim = Jim(
     likelihood,
     prior,
     sampler_config=BlackJAXSMCConfig(
-        n_particles=10000,
-        n_mcmc_steps_per_dim=10,
-        target_ess_fraction=0.8,
+        n_particles=5000,
+        n_mcmc_steps_per_dim=100,
+        target_ess=10000,
+        initial_cov_scale=0.5,
+        target_acceptance_rate=0.234,
+        scale_adaptation_gain=3.0,
+        persistent_sampling=True,
+        temperature_ladder=None,
     ),
     verbose=True,
 )
@@ -168,6 +175,10 @@ print(f"Likelihood evaluations: {diagnostics['n_likelihood_evaluations']:,}")
 
 chains = jim.get_samples()
 
+samples_path = OUTDIR / "QS_DarkPhoton_SMC_samples.npz"
+np.savez(samples_path, **{k: np.asarray(v) for k, v in chains.items()})
+print(f"Saved samples to {samples_path}")
+
 parameter_labels = {
     "M_c": r"$\mathcal{M}_c\,[M_\odot]$",
     "sigma_1": r"$\sigma_1$",
@@ -176,9 +187,34 @@ parameter_labels = {
 
 truths = [float(injection_parameters[k]) for k in jim.prior.parameter_names]
 
+plt.rcParams.update(
+    {
+        "font.family": "serif",
+        "mathtext.fontset": "cm",
+        "axes.linewidth": 0.8,
+        "xtick.labelsize": 12,
+        "ytick.labelsize": 12,
+    }
+)
+
 fig = corner.corner(
     np.stack([chains[key] for key in jim.prior.parameter_names]).T[::10],
     labels=[parameter_labels.get(k, k) for k in jim.prior.parameter_names],
     truths=truths,
+    truth_color="#DA5B2A",
+    color="#3B4CC0",
+    bins=40,
+    smooth=0.9,
+    quantiles=[0.16, 0.5, 0.84],
+    levels=(1 - np.exp(-0.5), 1 - np.exp(-2)),
+    plot_density=False,
+    plot_datapoints=False,
+    fill_contours=False,
+    max_n_ticks=4,
+    show_titles=True,
+    title_fmt=".2f",
+    use_math_text=True,
+    label_kwargs={"fontsize": 16},
+    title_kwargs={"fontsize": 14},
 )
-fig.savefig(Path(__file__).parent / "QS_DarkPhoton_SMC.png")
+fig.savefig(OUTDIR / "QS_DarkPhoton_SMC.pdf", bbox_inches="tight")
