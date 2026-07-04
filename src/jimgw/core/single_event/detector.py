@@ -1011,9 +1011,7 @@ class QuantumSensor(Detector):
         self.psd = PowerSpectrum()
 
     @staticmethod
-    def _get_arm(
-        lat: float, lon: float, Az: float, Alt: float
-    ) -> Float[Array, "3"]:
+    def _get_arm(lat: float, lon: float, Az: float, Alt: float) -> Float[Array, "3"]:
         """Construct a sensor arm unit vector in geocentric Cartesian coordinates.
 
         The arm direction is specified in the local geographic frame at the sensor
@@ -1120,7 +1118,7 @@ class QuantumSensor(Detector):
 
         The response is
 
-        $$s(\nu) = \frac{T_2^{-1}}{2\pi i(\nu - f_0) + T_2^{-1}}\bigl[B_y(\nu) - i\,B_x(\nu)\bigr]$$
+        $$s(\nu) = \frac{1}{2\pi i(\nu - f_0) * T_2 + 1}\bigl[B_y(\nu) - i\,B_x(\nu)\bigr]$$
 
         where $B_x$ and $B_y$ are the dark photon magnetic field projected onto the
         x and y arms via dot product, $T_2$ is ``tau_Xe``, and $f_0$ is ``freq_Xe``.
@@ -1134,7 +1132,7 @@ class QuantumSensor(Detector):
                 the same likelihood machinery can thread the waveform output
                 straight through.
             params: Source parameters including ``ra``, ``dec``, ``psi``,
-                ``gmst``, ``trigger_time``, and ``t_c``.
+                ``eps_BD``, ``gmst``, ``trigger_time``, and ``t_c``.
 
         Returns:
             Complex frequency-domain sensor output.
@@ -1152,15 +1150,16 @@ class QuantumSensor(Detector):
 
         # Assuming kinetic mixing, the bright magnetic field is linear to the
         # dark magnetic field by a coupling coefficient, namely, eps_BD
-        B_vec *= params['eps_BD']
+        B_vec *= params["eps_BD"]
 
         # Project onto each arm direction via dot product.
         B_x = jnp.einsum("i,if->f", arm_x, B_vec)
         B_y = jnp.einsum("i,if->f", arm_y, B_vec)
 
         # Lorentzian transfer function centred at freq_Xe with linewidth tau_Xe^{-1}.
-        tau_inv = 1.0 / self.tau_Xe
-        lorentzian = tau_inv / (2j * jnp.pi * (frequency - self.freq_Xe) + tau_inv)
+        lorentzian = 1.0 / (
+            2j * jnp.pi * (frequency - self.freq_Xe) * self.tau_Xe + 1.0
+        )
         projected_signal = lorentzian * (B_y - 1j * B_x)
 
         # Time shift — identical to GroundBased2G.
@@ -1205,6 +1204,7 @@ class QuantumSensor(Detector):
             Data: The loaded Data object, already set on the sensor.
         """
         import scipy.io
+
         mat = scipy.io.loadmat(path)
         self.tau_Xe = float(mat[T2_key].flat[0])
         self.freq_Xe = float(mat[freq_key].flat[0])
