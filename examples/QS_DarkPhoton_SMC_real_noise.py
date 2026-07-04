@@ -3,8 +3,8 @@
 Loads real time-series data from the five Xe-comagnetometer sensors
 (Sensor1..5.mat), estimates each sensor's PSD via Welch's method on the real
 data, injects a dark-photon signal directly into an 8 s real-noise segment
-around the trigger time, and samples M_c, sigma_1, sigma_2, ra, and dec with
-the BlackJAX SMC sampler.
+around the trigger time, and samples M_c, sigma_1, sigma_2, ra, dec, and
+eps_BD with the BlackJAX SMC sampler.
 """
 
 import time
@@ -97,8 +97,8 @@ for i, get_qs in enumerate(get_qs_by_sensor, start=1):
 waveform = RippleDarkPhotonWaveform(RippleIMRPhenomD(f_ref=f_min))
 
 # --- Injection parameters (likelihood space) ---
-# eps_BD is degenerate with d_L (both scale amplitude multiplicatively), so
-# its absolute value is a placeholder; d_L is calibrated below.
+# eps_BD and d_L both scale amplitude multiplicatively, so the choice of
+# injected eps_BD is arbitrary; d_L is calibrated below to hit the target SNR.
 
 injection_parameters = {
     "M_c": 30.0,
@@ -112,9 +112,9 @@ injection_parameters = {
     "ra": 1.5,
     "dec": 0.5,
     "psi": 0.3,
-    "sigma_1": 0.1,
-    "sigma_2": -0.1,
-    "eps_BD": 1.0,
+    "sigma_1": 0.2,
+    "sigma_2": -0.2,
+    "eps_BD": 0.5,
 }
 
 print("The trial injection parameters are")
@@ -202,7 +202,7 @@ for qs in quantum_sensors:
     )
 print(f"Network optimal SNR: {network_snr_sq**0.5:.2f}")
 
-# --- Prior: M_c, sigma_1, sigma_2, ra, dec ---
+# --- Prior: M_c, sigma_1, sigma_2, ra, dec, eps_BD ---
 
 prior = CombinePrior(
     [
@@ -211,6 +211,7 @@ prior = CombinePrior(
         UniformPrior(-0.5, 0.5, parameter_names=["sigma_2"]),
         UniformPrior(0.0, 2 * jnp.pi, parameter_names=["ra"]),
         CosinePrior(parameter_names=["dec"]),
+        UniformPrior(0.0, 1.0, parameter_names=["eps_BD"]),
     ]
 )
 
@@ -275,6 +276,7 @@ parameter_labels = {
     "sigma_2": r"$\sigma_2$",
     "ra": r"$\alpha$",
     "dec": r"$\delta$",
+    "eps_BD": r"$\epsilon_{\rm BD}$",
 }
 
 truths = [float(injection_parameters[k]) for k in jim.prior.parameter_names]
