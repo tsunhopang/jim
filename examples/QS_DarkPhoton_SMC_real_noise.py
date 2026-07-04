@@ -274,12 +274,19 @@ parameter_labels = {
     "M_c": r"$\mathcal{M}_c\,[M_\odot]$",
     "sigma_1": r"$\sigma_1$",
     "sigma_2": r"$\sigma_2$",
+    "sigma_1_minus_sigma_2": r"$\sigma_1 - \sigma_2$",
     "ra": r"$\alpha$",
     "dec": r"$\delta$",
     "eps_BD": r"$\epsilon_{\rm BD}$",
 }
 
-truths = [float(injection_parameters[k]) for k in jim.prior.parameter_names]
+chains["sigma_1_minus_sigma_2"] = chains["sigma_1"] - chains["sigma_2"]
+injection_parameters["sigma_1_minus_sigma_2"] = (
+    injection_parameters["sigma_1"] - injection_parameters["sigma_2"]
+)
+corner_parameter_names = list(jim.prior.parameter_names) + ["sigma_1_minus_sigma_2"]
+
+truths = [float(injection_parameters[k]) for k in corner_parameter_names]
 
 plt.rcParams.update(
     {
@@ -292,8 +299,8 @@ plt.rcParams.update(
 )
 
 fig = corner.corner(
-    np.stack([chains[key] for key in jim.prior.parameter_names]).T[::10],
-    labels=[parameter_labels.get(k, k) for k in jim.prior.parameter_names],
+    np.stack([chains[key] for key in corner_parameter_names]).T[::10],
+    labels=[parameter_labels.get(k, k) for k in corner_parameter_names],
     truths=truths,
     truth_color="#DA5B2A",
     color="#3B4CC0",
