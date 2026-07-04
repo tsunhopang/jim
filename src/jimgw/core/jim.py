@@ -216,7 +216,7 @@ class Jim:
             return
 
         consumed: set[str] = set(wf_param_names)
-        consumed |= {"ra", "dec", "psi", "t_c"}
+        consumed |= {"ra", "dec", "psi", "t_c", "eps_BD"}
         if getattr(likelihood, "time_marginalization", False):
             consumed.discard("t_c")
         if getattr(likelihood, "phase_marginalization", False):
