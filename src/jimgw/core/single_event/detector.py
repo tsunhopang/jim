@@ -1150,6 +1150,10 @@ class QuantumSensor(Detector):
             "i,f->if", n, B_sky["c"]
         )
 
+        # Assuming kinetic mixing, the bright magnetic field is linear to the
+        # dark magnetic field by a coupling coefficient, namely, eps_BD
+        B_vec *= params['eps_BD']
+
         # Project onto each arm direction via dot product.
         B_x = jnp.einsum("i,if->f", arm_x, B_vec)
         B_y = jnp.einsum("i,if->f", arm_y, B_vec)
