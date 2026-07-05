@@ -13,9 +13,10 @@ def build_sensors(cfg: DataConfig) -> list[QuantumSensor]:
     """Load real analysis segments and PSDs for the configured quantum sensors.
 
     For each sensor: load the full raw .mat time series (also sets
-    `tau_Xe`/`freq_Xe`), estimate the PSD via Welch on the full series, then
-    slice out and demean the real analysis segment around the trigger time.
-    No signal is injected.
+    `tau_Xe`/`freq_Xe`), slice out and demean the real analysis segment around
+    the trigger time, then estimate the PSD via Welch on the full series with
+    that analysis segment excised (so the PSD estimate is not contaminated by
+    the data being analyzed). No signal is injected.
     """
     preset = get_quantum_sensor_preset()
     seg_start = cfg.trigger_time - cfg.duration + cfg.post_trigger_duration
@@ -35,12 +36,6 @@ def build_sensors(cfg: DataConfig) -> list[QuantumSensor]:
         fs = full_data.sampling_frequency
 
         n_times = int(round(cfg.duration * fs))
-        target_frequencies = jnp.fft.rfftfreq(n_times, d=1.0 / fs)
-        psd = full_data.to_psd(
-            window=("tukey", 0.2), nperseg=int(cfg.psd_nperseg_duration * fs)
-        ).interpolate(target_frequencies)
-        qs.set_psd(psd)
-
         idx0 = int(round((seg_start - full_data.start_time) * fs))
         segment = full_data.td[idx0 : idx0 + n_times]
         segment = segment - segment.mean()
@@ -52,6 +47,21 @@ def build_sensors(cfg: DataConfig) -> list[QuantumSensor]:
                 name=f"{qs.name}_real",
             )
         )
+
+        psd_td = jnp.concatenate(
+            [full_data.td[:idx0], full_data.td[idx0 + n_times :]]
+        )
+        psd_data = Data(
+            td=psd_td,
+            delta_t=full_data.delta_t,
+            start_time=full_data.start_time,
+            name=f"{qs.name}_psd_estimation",
+        )
+        target_frequencies = jnp.fft.rfftfreq(n_times, d=1.0 / fs)
+        psd = psd_data.to_psd(
+            window=("tukey", 0.2), nperseg=int(cfg.psd_nperseg_duration * fs)
+        ).interpolate(target_frequencies)
+        qs.set_psd(psd)
 
         logger.info(
             "%s: freq_Xe=%.4f Hz, tau_Xe=%.4f s, segment %.1f s @ %.0f Hz",
