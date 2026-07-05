@@ -1418,7 +1418,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
     { name = "pydantic", specifier = ">=2" },
     { name = "requests", specifier = ">=2.32.3" },
-    { name = "ripplegw", specifier = ">=0.2.1" },
+    { name = "ripplegw", editable = "../ripple" },
     { name = "scipy", specifier = ">=1.17.1" },
     { name = "tomli-w", specifier = ">=1.0" },
     { name = "typer", specifier = ">=0.12" },
@@ -3362,15 +3362,40 @@ wheels = [
 
 [[package]]
 name = "ripplegw"
-version = "0.2.1"
-source = { registry = "https://pypi.org/simple" }
+source = { editable = "../ripple" }
 dependencies = [
     { name = "jax" },
     { name = "jaxtyping" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2e/ec/e6f6a67c5af1f1ba7f227d73377a1b7ef51441c9ee35fb584b2836a0cc58/ripplegw-0.2.1.tar.gz", hash = "sha256:37cd84f30be7a8cf71a6229a1e198d33976ac77c12d79fb06fdbba962e2fd429", size = 473283, upload-time = "2026-06-26T17:48:46.753Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d2/7e/e41edb149a71d7b6a978acf7d333ccee9c09d629e5d1f28c125ee8d68eda/ripplegw-0.2.1-py3-none-any.whl", hash = "sha256:d653bcf1158d49d9213df0a646e32f0c842ff1cecf23966da2a96cf3415671e2", size = 184577, upload-time = "2026-06-26T17:48:45.406Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "jax", specifier = ">=0.8.2" },
+    { name = "jax", extras = ["cuda"], marker = "extra == 'cuda'", specifier = ">=0.8.2" },
+    { name = "jaxtyping", specifier = ">=0.3.3" },
+]
+provides-extras = ["cuda"]
+
+[package.metadata.requires-dev]
+cross-validation = [{ name = "lalsuite" }]
+doc = [
+    { name = "mkdocstrings", extras = ["python"] },
+    { name = "nbconvert" },
+    { name = "pymdown-extensions" },
+    { name = "zensical" },
+]
+test = [
+    { name = "coverage", specifier = ">=7.7.0" },
+    { name = "coveralls", specifier = ">=4.0.1" },
+    { name = "matplotlib", specifier = ">=3.7.0" },
+    { name = "numpy", specifier = ">=1,<3" },
+    { name = "pandas", specifier = ">=2.0.0" },
+    { name = "pre-commit", specifier = ">=4.2.0" },
+    { name = "pyright", specifier = ">=1.1.402" },
+    { name = "pytest", specifier = ">=8.3.3" },
+    { name = "pytest-cov", specifier = ">=6.0.0" },
+    { name = "ruff", specifier = ">=0.12.2" },
+    { name = "tqdm", specifier = ">=4.66.0" },
 ]
 
 [[package]]

@@ -44,6 +44,7 @@ dependencies = [
 
 [project.scripts]
 jim-run = "jimgw.cli:app"
+jim-dp-run = "jimgw.cli_dp:app"
 
 [project.optional-dependencies]
 cuda = [
@@ -88,6 +89,9 @@ jimgw = { workspace = true }
 #   - blackjax.nss                                                          (NSS)
 # When the NS module land upstream, drop this pin and the nested-sampling group.
 blackjax = { git = "https://github.com/GW-JAX-Team/blackjax.git", branch = "jim" }
+# Local checkout of the `dark_photon` branch, which adds DarkPhotonWaveform.
+# Swap for a released ripplegw version once that branch merges/publishes.
+ripplegw = { path = "../ripple", editable = true }
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
