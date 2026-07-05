@@ -22,12 +22,45 @@ from jimgw.samplers.config import SamplerConfig
 _SUPPORTED_SENSORS = frozenset({"QS-I", "QS-II", "QS-III", "QS-IV", "QS-V"})
 
 
+class InjectionConfig(BaseModel):
+    """Simulated dark-photon signal added on top of the real noise segment.
+
+    Off by default (`data.injection` unset): PE then runs directly on the
+    real segment, as before. When set, a deterministic signal computed from
+    `injection_parameters` (likelihood-space parameter names, e.g. M_c, eta,
+    s1_z, s2_z, t_c, phase_c, iota, ra, dec, psi, sigma_1, sigma_2, eps_BD,
+    plus either `d_L` or `target_optimal_snr` -- see below) is added to each
+    sensor's real frequency-domain strain.
+
+    Exactly one of `injection_parameters["d_L"]` or `target_optimal_snr` must
+    be given: either inject at a fixed luminosity distance, or let d_L be
+    solved for so the injected signal's network optimal SNR (summed over all
+    configured sensors) hits `target_optimal_snr`.
+    """
+
+    model_config = {"extra": "forbid"}
+    injection_parameters: dict[str, float]
+    target_optimal_snr: Optional[float] = None
+
+    @model_validator(mode="after")
+    def _check_distance_xor_target_snr(self) -> "InjectionConfig":
+        has_d_l = "d_L" in self.injection_parameters
+        has_target = self.target_optimal_snr is not None
+        if has_d_l == has_target:
+            raise ValueError(
+                "Provide exactly one of injection_parameters['d_L'] or "
+                "target_optimal_snr, not both or neither."
+            )
+        return self
+
+
 class DataConfig(BaseModel):
     """Load a real analysis segment and PSD from quantum-sensor .mat files.
 
-    No signal injection: this runs the likelihood directly on the real
-    segment (a search/PE run), unlike the reference example script which
-    injects a synthetic signal for pipeline validation.
+    By default no signal is injected and the likelihood runs directly on the
+    real segment (a search/PE run). Set `injection` to additionally add a
+    simulated dark-photon signal on top of the real segment for pipeline
+    validation.
     """
 
     model_config = {"extra": "forbid"}
@@ -47,6 +80,7 @@ class DataConfig(BaseModel):
     t_key: str = "t"
     T2_key: str = "T2"
     freq_key: str = "freq"
+    injection: Optional[InjectionConfig] = None
 
     @field_validator("sensors")
     @classmethod

@@ -30,6 +30,13 @@ duration = 8.0
 post_trigger_duration = 2.0
 psd_nperseg_duration = 8.0
 
+# To validate the pipeline by injecting a simulated signal into the real
+# segment, uncomment and adjust (off by default). Give exactly one of
+# injection_parameters.d_L or target_optimal_snr:
+# [data.injection]
+# target_optimal_snr = 30.0
+# injection_parameters = { M_c = 30.0, eta = 0.25, s1_z = 0.0, s2_z = 0.0, t_c = 0.0, phase_c = 0.0, iota = 0.0, ra = 1.5, dec = 0.5, psi = 0.3, sigma_1 = 0.2, sigma_2 = -0.2, eps_BD = 0.5 }
+
 [waveform]
 approximant = "DarkPhotonWaveform"
 base_approximant = "IMRPhenomD"
@@ -161,8 +168,10 @@ def run(
     # Stage 2: waveform
     waveform = build_waveform(cfg.waveform)
 
-    # Stage 3: data — real segment + PSD per sensor, no injection
-    sensors = build_sensors(cfg.data)
+    # Stage 3: data — real segment + PSD per sensor, optional injection
+    sensors = build_sensors(
+        cfg.data, waveform, cfg.likelihood.f_min, cfg.likelihood.f_max
+    )
 
     # Stage 4: prior
     prior = build_prior(cfg.prior)
@@ -209,6 +218,11 @@ def _log_versions(sampler_type: str) -> None:
 def _log_config_summary(cfg: PipelineConfig) -> None:
     logger.info("seed: %d", cfg.seed)
     logger.info("data: sensors=%s", cfg.data.sensors)
+    if cfg.data.injection is not None:
+        logger.warning(
+            "SIMULATED INJECTION ENABLED: a synthetic signal will be added "
+            "to the real data segment before sampling."
+        )
     logger.info(
         "waveform: %s (base=%s, f_ref=%.1f Hz)",
         cfg.waveform.approximant,
