@@ -28,8 +28,10 @@ dependencies = [
     "corner>=2.2.3",
     "equinox>=0.11",
     "evosax>=0.2.0",
+    "flowjax>=19.1.1",
     "flowmc>=0.6.1",
     "gwpy>=3.0.12",
+    "h5py>=3.11",
     "jax>=0.8.2",
     "jaxtyping>=0.3.3",
     "matplotlib>=3.10.7",
@@ -45,6 +47,7 @@ dependencies = [
 [project.scripts]
 jim-run = "jimgw.cli:app"
 jim-dp-run = "jimgw.cli_dp:app"
+jim-nf = "jimgw.cli_nf:app"
 
 [project.optional-dependencies]
 cuda = [
