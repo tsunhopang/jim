@@ -58,6 +58,16 @@ sigma_1 = { type = "uniform",   min = -0.5,  max = 0.5   }
 sigma_2 = { type = "uniform",   min = -0.5,  max = 0.5   }
 eps_BD  = { type = "uniform",   min = 0.0,   max = 1.0   }
 
+# To use a normalizing flow trained with `jim-nf` as an informed joint prior over
+# the parameters it was trained on, uncomment below and REMOVE those parameters from
+# [prior] above (they are supplied by the flow). Parameter names come from the flow
+# metadata. Optionally restrict each to a physical box via [nf_prior.bounds].
+# [nf_prior]
+# model = "output/nf/GW230605_065343_NF.eqx"
+# [nf_prior.bounds]
+# q   = [0.125, 1.0]
+# d_L = [1.0, 2000.0]
+
 [likelihood]
 f_min = 20.0
 f_max = 512.0
@@ -161,7 +171,9 @@ def run(
     from jimgw.cli_dp._data import build_sensors
     from jimgw.cli_dp._jim import build_jim
     from jimgw.cli_dp._likelihood import build_likelihood
+    from jimgw.cli_dp._nf_prior import build_nf_prior
     from jimgw.cli_dp._transforms import infer_likelihood_transforms
+    from jimgw.core.prior import CombinePrior
 
     trigger_time: float = cfg.data.trigger_time
 
@@ -173,8 +185,19 @@ def run(
         cfg.data, waveform, cfg.likelihood.f_min, cfg.likelihood.f_max
     )
 
-    # Stage 4: prior
+    # Stage 4: prior — config priors, optionally joined with a trained NF prior
     prior = build_prior(cfg.prior)
+    if cfg.nf_prior is not None:
+        nf_prior = build_nf_prior(cfg.nf_prior)
+        overlap = set(nf_prior.parameter_names) & set(cfg.prior.root.keys())
+        if overlap:
+            typer.echo(
+                f"Error: parameter(s) {sorted(overlap)} are provided by both the NF "
+                "prior and the [prior] section. Remove them from [prior].",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        prior = CombinePrior([nf_prior, prior])
 
     # Stage 5: likelihood transform inference (only q -> eta, if present)
     prior_params = frozenset(prior.parameter_names)
@@ -231,5 +254,7 @@ def _log_config_summary(cfg: PipelineConfig) -> None:
     )
     param_names = list(cfg.prior.root.keys())
     logger.info("prior: %d parameter(s): %s", len(param_names), param_names)
+    if cfg.nf_prior is not None:
+        logger.info("nf_prior: %s", cfg.nf_prior.model)
     logger.info("sampler: type=%s", cfg.sampler.type)
     logger.info("output: %s", cfg.output.dir)

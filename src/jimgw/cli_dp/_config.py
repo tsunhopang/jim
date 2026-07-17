@@ -123,6 +123,23 @@ class LikelihoodConfig(BaseModel):
     distance_marginalization: Optional[CLIDistanceMargConfig] = None
 
 
+class NFPriorConfig(BaseModel):
+    """Use a trained normalizing flow (from ``jim-nf``) as a joint prior.
+
+    The flow supplies the prior over the parameters it was trained on (stored as jim
+    names in its metadata); every other parameter keeps its per-parameter prior in the
+    ``[prior]`` section, which must therefore omit the NF parameters.
+    """
+
+    model_config = {"extra": "forbid"}
+    model: Path
+    """Path to the serialized ``<label>_NF.eqx`` flow."""
+    metadata: Optional[Path] = None
+    """Path to the ``<label>_NF.json`` metadata. Defaults to `model` with .json."""
+    bounds: dict[str, tuple[float, float]] = Field(default_factory=dict)
+    """Optional physical box per jim parameter name: outside it the prior is -inf."""
+
+
 class PipelineConfig(BaseModel):
     model_config = {"extra": "forbid"}
 
@@ -130,6 +147,7 @@ class PipelineConfig(BaseModel):
     data: DataConfig
     waveform: WaveformConfig
     prior: PriorConfig
+    nf_prior: Optional[NFPriorConfig] = None
     likelihood: LikelihoodConfig
     sampler: SamplerConfig
     output: OutputConfig
