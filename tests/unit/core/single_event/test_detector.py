@@ -226,6 +226,7 @@ class TestQuantumSensor:
             "gmst": float(compute_gmst(GPS_TIME)),
             "trigger_time": GPS_TIME,
             "t_c": 0.0,
+            "eps_BD": 1.0,
         }
         params.update(overrides)
         return params

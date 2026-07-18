@@ -1,5 +1,6 @@
 """Unit tests for the Jim class."""
 
+from collections.abc import Sequence
 from typing import Optional
 
 import jax
@@ -407,6 +408,7 @@ class TestJimPriorLikelihoodConsistencyChecks:
         self,
         waveform_parameter_names: tuple[str, ...],
         fixed_parameters: Optional[dict] = None,
+        detectors: Sequence = (),
     ):
         from jimgw.core.single_event.likelihood import SingleEventLikelihood
         from ripplegw.interfaces import Waveform as RippleWaveform
@@ -424,9 +426,10 @@ class TestJimPriorLikelihoodConsistencyChecks:
                 return {"p": axis, "c": axis}
 
         class FakeSingleEventLikelihood(SingleEventLikelihood):
-            def __init__(self, waveform, fixed_parameters):
+            def __init__(self, waveform, fixed_parameters, detectors):
                 self.waveform = waveform
                 self.fixed_parameters = fixed_parameters or {}
+                self.detectors = detectors
 
             def _likelihood(self, params) -> Float:
                 return 0.0
@@ -434,6 +437,7 @@ class TestJimPriorLikelihoodConsistencyChecks:
         return FakeSingleEventLikelihood(
             waveform=MockWaveform(waveform_parameter_names),
             fixed_parameters=fixed_parameters or {},
+            detectors=detectors,
         )
 
     def test_prior_shadows_fixed_parameter_raises(self):
@@ -510,6 +514,29 @@ class TestJimPriorLikelihoodConsistencyChecks:
             waveform_parameter_names=("M_c", "ra", "dec", "psi", "t_c"),
         )
         Jim(likelihood=lh, prior=prior, sampler_config=_tiny_flowmc_config())
+
+    def test_quantum_sensor_requires_eps_BD_raises(self):
+        # eps_BD is only consumed by QuantumSensor, so it must be demanded when one is
+        # present and ignored otherwise (test_prior_all_consumed_no_error covers the
+        # interferometer case).
+        from jimgw.core.single_event.detector import get_quantum_sensor_preset
+
+        prior = CombinePrior(
+            [
+                UniformPrior(10.0, 80.0, parameter_names=["M_c"]),
+                UniformPrior(0.0, 3.14, parameter_names=["ra"]),
+                UniformPrior(-1.57, 1.57, parameter_names=["dec"]),
+                UniformPrior(0.0, 3.14, parameter_names=["psi"]),
+                UniformPrior(-0.1, 0.1, parameter_names=["t_c"]),
+                # eps_BD intentionally omitted
+            ]
+        )
+        lh = self._make_mock_single_event_likelihood(
+            waveform_parameter_names=("M_c", "ra", "dec", "psi", "t_c"),
+            detectors=[get_quantum_sensor_preset()["QS-I"]],
+        )
+        with pytest.raises(ValueError, match=r"\['eps_BD'\]"):
+            Jim(likelihood=lh, prior=prior, sampler_config=_tiny_flowmc_config())
 
     def test_sample_transform_overwrites_unconsumed_prior_parameter_raises(self):
         # Prior defines both M_c and M_c_unbounded; sample transform maps
