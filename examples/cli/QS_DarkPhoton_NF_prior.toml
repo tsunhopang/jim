@@ -1,0 +1,73 @@
+# Dark-photon PE using a normalizing-flow prior trained with `jim-nf`.
+#
+# The flow supplies the joint prior over (M_c, q, d_L, iota, ra, dec) -- the
+# parameters it was trained on (jim names are stored in the flow metadata). Those
+# parameters are therefore OMITTED from [prior] below; everything else keeps its
+# per-parameter prior here.
+#
+# Train the flow first, e.g.:
+#   jim-nf --input .../GW230605_065343-combined_PEDataRelease.hdf5 --output output/nf
+# which writes output/nf/GW230605_065343_NF.eqx and .json.
+
+seed = 0
+
+[data]
+sensors = ["QS-I", "QS-II", "QS-III", "QS-IV", "QS-V"]
+sensor_files = { "QS-I" = "real_data/Sensor1.mat", "QS-II" = "real_data/Sensor2.mat", "QS-III" = "real_data/Sensor3.mat", "QS-IV" = "real_data/Sensor4.mat", "QS-V" = "real_data/Sensor5.mat" }
+data_start_gps = 1343650218.0
+trigger_time = 1343650718.0
+duration = 8.0
+post_trigger_duration = 2.0
+psd_nperseg_duration = 8.0
+
+[waveform]
+approximant = "DarkPhotonWaveform"
+base_approximant = "IMRPhenomD"
+f_ref = 20.0
+
+# Trained normalizing-flow prior over M_c, q, d_L, iota, ra, dec.
+[nf_prior]
+model = "output/nf/GW230605_065343_NF.eqx"
+# metadata defaults to the model path with a .json suffix; set explicitly to override:
+# metadata = "output/nf/GW230605_065343_NF.json"
+
+# Optional physical box per jim parameter name. Outside the box the prior is -inf,
+# which keeps the sampler from proposing unphysical values that the flow's tails can
+# otherwise reach (e.g. q > 1, d_L < 0). Bounds are optional; omit any you don't need.
+[nf_prior.bounds]
+M_c  = [25.0, 35.0]
+q    = [0.125, 1.0]
+d_L  = [1.0, 2000.0]
+iota = [0.0, 3.141592653589793]           # pi
+ra   = [0.0, 6.283185307179586]           # 2*pi
+dec  = [-1.5707963267948966, 1.5707963267948966]  # -pi/2 .. pi/2
+
+# Only the parameters NOT covered by the NF go here.
+[prior]
+s1_z    = { type = "uniform", min = -0.99, max = 0.99 }
+s2_z    = { type = "uniform", min = -0.99, max = 0.99 }
+t_c     = { type = "uniform", min = -0.1,  max = 0.1  }
+phase_c = { type = "uniform", min = 0.0,   max = 6.283185307179586 }  # 2*pi
+psi     = { type = "uniform", min = 0.0,   max = 3.141592653589793 }  # pi
+sigma_1 = { type = "uniform", min = -0.5,  max = 0.5  }
+sigma_2 = { type = "uniform", min = -0.5,  max = 0.5  }
+eps_BD  = { type = "uniform", min = 0.0,   max = 1.0  }
+
+[likelihood]
+f_min = 20.0
+f_max = 512.0
+
+# Production defaults -- for a quick test try: n_particles=500, n_mcmc_steps_per_dim=20
+[sampler]
+type = "blackjax-smc"
+n_particles = 5000
+n_mcmc_steps_per_dim = 100
+target_ess = 10000
+initial_cov_scale = 0.5
+target_acceptance_rate = 0.234
+scale_adaptation_gain = 3.0
+persistent_sampling = true
+
+[output]
+dir = "output/dp_nf_run"
+save_corner = false
