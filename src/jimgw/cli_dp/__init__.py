@@ -187,6 +187,7 @@ def run(
 
     # Stage 4: prior — config priors, optionally joined with a trained NF prior
     prior = build_prior(cfg.prior)
+    nf_prior = None
     if cfg.nf_prior is not None:
         nf_prior = build_nf_prior(cfg.nf_prior)
         overlap = set(nf_prior.parameter_names) & set(cfg.prior.root.keys())
@@ -207,7 +208,9 @@ def run(
     likelihood = build_likelihood(cfg.likelihood, sensors, waveform, trigger_time)
 
     # Stage 7: build Jim + run sampler
-    jim = build_jim(likelihood, prior, likelihood_transforms, cfg, verbose=verbose)
+    jim = build_jim(
+        likelihood, prior, likelihood_transforms, cfg, nf_prior, verbose=verbose
+    )
 
     try:
         jim.sample()

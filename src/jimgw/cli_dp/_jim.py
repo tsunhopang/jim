@@ -33,15 +33,17 @@ def build_jim(
     prior,
     likelihood_transforms: Sequence[NtoMTransform],
     cfg,
+    nf_prior=None,
     verbose: bool = False,
 ) -> Jim:
     """Wire together Jim from the fully-built dark-photon components.
 
     No sample transforms are used (see `_transforms.py`); `ra`/`phase_c`
-    periodicity, if present in the prior, is passed to `Jim` directly.
+    periodicity is passed to `Jim` directly, whether those angles come from the
+    `[prior]` section or from `nf_prior`.
     """
     sampler_config = _with_checkpoint(cfg.sampler, cfg.output.dir)
-    periodic = infer_periodic(cfg.prior)
+    periodic = infer_periodic(cfg.prior, nf_prior)
     jim = Jim(
         likelihood=likelihood,
         prior=prior,
