@@ -389,7 +389,8 @@ class Jim:
             Array of shape ``(n, n_dims)`` in sampling space.
 
         Raises:
-            ValueError: If any drawn position contains non-finite values.
+            ValueError: If any drawn position contains non-finite values, or has zero
+                prior probability.
         """
         initial = self.prior.sample(key, n)
         for transform in self.sample_transforms:
@@ -399,6 +400,16 @@ class Jim:
             raise ValueError(
                 "Initial positions contain non-finite values (NaN or inf). "
                 "Check your priors and transforms for validity."
+            )
+        # A prior whose `sample` and `log_prob` disagree yields particles that some
+        # samplers never recover from: SMC weights come from the likelihood alone, so a
+        # -inf-prior particle is never culled and stays frozen where it started.
+        n_zero_prior = int(jnp.sum(jnp.isneginf(jax.vmap(self._log_prior_fn)(arr))))
+        if n_zero_prior > 0:
+            raise ValueError(
+                f"{n_zero_prior}/{n} positions drawn from the prior have zero prior "
+                "probability (log_prob = -inf). The prior's sample() and log_prob() "
+                "disagree; sample() must only return points its log_prob supports."
             )
         return arr
 

@@ -46,6 +46,11 @@ FLOW_LAYERS = 8
 NN_WIDTH = 50
 NN_DEPTH = 1
 
+# Rejection sampling against the optional box bounds: how much to oversample each round
+# and how many rounds before giving up (see `NormalizingFlowPrior._sample_in_bounds`).
+DRAW_OVERSAMPLE = 2
+MAX_REJECTION_ROUNDS = 20
+
 
 def build_inner_flow(key: Key, n_dim: int, knots: int, interval: float):
     """The bare masked-autoregressive spline flow, before the standardization wrap."""
@@ -92,12 +97,15 @@ class NormalizingFlowPrior(Prior):
     flow: Transformed
     lower: Float[Array, " n_dims"]
     upper: Float[Array, " n_dims"]
+    bounded: bool = eqx.field(static=True)
 
     @property
     def is_normalized(self) -> bool:
-        # The flow is a proper normalized density; optional box bounds only truncate
-        # negligible tail mass (the flow is trained on physical samples), so the prior
-        # remains normalized to machine precision, as required by SMC/NSS.
+        # The flow is a proper normalized density. The optional box bounds truncate a
+        # small amount of tail mass without renormalizing, so strictly the density
+        # integrates to slightly less than 1; the deficit is far below the precision
+        # that matters for the evidence computed by SMC/NSS. `sample` rejects that
+        # truncated mass so draws and `log_prob` support stay consistent.
         return True
 
     def __repr__(self):
@@ -125,6 +133,9 @@ class NormalizingFlowPrior(Prior):
         self.upper = jnp.array(
             [bounds.get(name, (-jnp.inf, jnp.inf))[1] for name in parameter_names]
         )
+        self.bounded = bool(
+            jnp.any(jnp.isfinite(self.lower) | jnp.isfinite(self.upper))
+        )
 
     def log_prob(self, z: dict[str, Float]) -> FloatScalar:
         x = jnp.stack([z[name] for name in self.parameter_names])
@@ -132,10 +143,40 @@ class NormalizingFlowPrior(Prior):
         in_bounds = jnp.all((x >= self.lower) & (x <= self.upper))
         return jnp.where(in_bounds, base, -jnp.inf)
 
+    def _sample_in_bounds(
+        self, rng_key: Key, n_samples: int
+    ) -> Float[Array, "n_samples n_dims"]:
+        """Draw ``n_samples`` flow samples inside the box, by rejection.
+
+        The flow has support on all of R^n, so a few draws per thousand land outside a
+        hard physical edge the training posterior piles up against (q > 1, d_L < 0).
+        Returning those would hand the sampler particles whose log-prior is -inf, which
+        SMC never culls (its weights come from the likelihood alone), leaving them frozen
+        at their initial position and resampled straight into the output.
+        """
+        collected = []
+        n_found = 0
+        for _ in range(MAX_REJECTION_ROUNDS):
+            rng_key, draw_key = jax.random.split(rng_key)
+            x = self.flow.sample(draw_key, (DRAW_OVERSAMPLE * (n_samples - n_found),))
+            keep = x[jnp.all((x >= self.lower) & (x <= self.upper), axis=1)]
+            collected.append(keep)
+            n_found += keep.shape[0]
+            if n_found >= n_samples:
+                return jnp.concatenate(collected)[:n_samples]
+        raise RuntimeError(
+            f"Rejection sampling the NF prior gave only {n_found}/{n_samples} in-bounds "
+            f"draws after {MAX_REJECTION_ROUNDS} rounds. The bounds likely exclude most "
+            "of the flow's mass; check that they match the range the flow was trained on."
+        )
+
     def sample(
         self, rng_key: Key, n_samples: int
     ) -> dict[str, Float[Array, " n_samples"]]:
-        samples = self.flow.sample(rng_key, (n_samples,))
+        if self.bounded:
+            samples = self._sample_in_bounds(rng_key, n_samples)
+        else:
+            samples = self.flow.sample(rng_key, (n_samples,))
         return {name: samples[:, i] for i, name in enumerate(self.parameter_names)}
 
 
