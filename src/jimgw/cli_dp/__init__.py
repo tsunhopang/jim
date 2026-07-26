@@ -69,6 +69,8 @@ eps_BD  = { type = "uniform",   min = 0.0,   max = 1.0   }
 # d_L = [1.0, 2000.0]
 
 [likelihood]
+# Scalar applies to every sensor; for a per-sensor band use an inline table
+# keyed by sensor name, e.g. f_min = { "QS-I" = 13.5, "QS-II" = 10.0 }
 f_min = 20.0
 f_max = 512.0
 

@@ -13,11 +13,16 @@ from jimgw.core.single_event.utils import complex_inner_product, inner_product
 logger = logging.getLogger(__name__)
 
 
+def _bound_for(bound: float | dict[str, float], name: str) -> float:
+    """Resolve a scalar-or-per-sensor frequency bound for one sensor."""
+    return bound[name] if isinstance(bound, dict) else bound
+
+
 def build_sensors(
     cfg: DataConfig,
     waveform,
-    f_min: float,
-    f_max: float,
+    f_min: float | dict[str, float],
+    f_max: float | dict[str, float],
 ) -> list[QuantumSensor]:
     """Load real analysis segments and PSDs for the configured quantum sensors.
 
@@ -105,8 +110,8 @@ def _resolve_injection_parameters(
     sensors: list[QuantumSensor],
     injection: InjectionConfig,
     waveform,
-    f_min: float,
-    f_max: float,
+    f_min: float | dict[str, float],
+    f_max: float | dict[str, float],
     trigger_time: float,
 ) -> dict[str, float]:
     """Return likelihood-space injection parameters with `d_L` resolved.
@@ -138,15 +143,15 @@ def _trial_optimal_snr(
     qs: QuantumSensor,
     waveform,
     params: dict[str, float],
-    f_min: float,
-    f_max: float,
+    f_min: float | dict[str, float],
+    f_max: float | dict[str, float],
     trigger_time: float,
 ) -> float:
     """Optimal SNR for `params` against qs's PSD -- independent of qs.data."""
     p = dict(params)
     p["trigger_time"] = float(trigger_time)
     p["gmst"] = float(compute_gmst(trigger_time))
-    qs.set_frequency_bounds(f_min, f_max)
+    qs.set_frequency_bounds(_bound_for(f_min, qs.name), _bound_for(f_max, qs.name))
     band_frequencies = qs.sliced_frequencies
     band_signal = qs.fd_response(band_frequencies, waveform(band_frequencies, p), p)
     df = band_frequencies[1] - band_frequencies[0]
@@ -157,8 +162,8 @@ def _inject_signal(
     qs: QuantumSensor,
     params: dict[str, float],
     waveform,
-    f_min: float,
-    f_max: float,
+    f_min: float | dict[str, float],
+    f_max: float | dict[str, float],
     trigger_time: float,
 ) -> float:
     """Add a simulated signal on top of qs's already-loaded real segment.
@@ -176,7 +181,7 @@ def _inject_signal(
     p["trigger_time"] = float(trigger_time)
     p["gmst"] = float(compute_gmst(trigger_time))
 
-    qs.set_frequency_bounds(f_min, f_max)
+    qs.set_frequency_bounds(_bound_for(f_min, qs.name), _bound_for(f_max, qs.name))
     band_frequencies = qs.sliced_frequencies
     polarisations = waveform(band_frequencies, p)
     band_signal = qs.fd_response(band_frequencies, polarisations, p)

@@ -115,8 +115,11 @@ class LikelihoodConfig(BaseModel):
     """
 
     model_config = {"extra": "forbid"}
-    f_min: float
-    f_max: float
+    f_min: float | dict[str, float]
+    """Minimum frequency in Hz. Either one value for every sensor, or a
+    per-sensor mapping keyed by sensor name (e.g. `{ "QS-I" = 13.5 }`)."""
+    f_max: float | dict[str, float]
+    """Maximum frequency in Hz, scalar or per-sensor like `f_min`."""
     fixed_parameters: dict[str, float] = Field(default_factory=dict)
     phase_marginalization: bool = False
     time_marginalization: Optional[CLITimeMargConfig] = None
@@ -151,3 +154,18 @@ class PipelineConfig(BaseModel):
     likelihood: LikelihoodConfig
     sampler: SamplerConfig
     output: OutputConfig
+
+    @model_validator(mode="after")
+    def _check_frequency_bounds_cover_sensors(self) -> "PipelineConfig":
+        for field in ("f_min", "f_max"):
+            bound = getattr(self.likelihood, field)
+            if not isinstance(bound, dict):
+                continue
+            missing = [s for s in self.data.sensors if s not in bound]
+            unknown = [s for s in bound if s not in self.data.sensors]
+            if missing or unknown:
+                raise ValueError(
+                    f"likelihood.{field} is keyed per sensor but does not match "
+                    f"data.sensors: missing {missing}, unknown {unknown}"
+                )
+        return self

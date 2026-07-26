@@ -13,6 +13,12 @@ from jimgw.core.single_event.marginalization_config import (
 logger = logging.getLogger(__name__)
 
 
+def _format_bound(bound: float | dict[str, float]) -> str:
+    if isinstance(bound, dict):
+        return ", ".join(f"{name}={value:.2f}" for name, value in bound.items())
+    return f"{bound:.2f}"
+
+
 def build_likelihood(
     cfg: LikelihoodConfig,
     sensors: list[QuantumSensor],
@@ -51,9 +57,9 @@ def build_likelihood(
         distance_marginalization=dist_marg,
     )
     logger.info(
-        "Built likelihood: f_min=%.1f, f_max=%.1f, trigger_time=%.3f",
-        cfg.f_min,
-        cfg.f_max,
+        "Built likelihood: f_min=%s, f_max=%s, trigger_time=%.3f",
+        _format_bound(cfg.f_min),
+        _format_bound(cfg.f_max),
         trigger_time,
     )
     return likelihood
