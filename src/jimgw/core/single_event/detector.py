@@ -1157,10 +1157,15 @@ class QuantumSensor(Detector):
         B_y = jnp.einsum("i,if->f", arm_y, B_vec)
 
         # Lorentzian transfer function centred at freq_Xe with linewidth tau_Xe^{-1}.
-        lorentzian = 1.0 / (
+        # the data has the response from Xe at resonance calibrated to 1
+        kappa_Xe = 5.76e-4
+        kappa_Rb = 2.42e-7
+        eta_Rb = 100.0
+        lorentzian_Xe = 1.0 / (
             2j * jnp.pi * (frequency - self.freq_Xe) * self.tau_Xe + 1.0
         )
-        projected_signal = lorentzian * (B_y - 1j * B_x)
+        scale_Rb = kappa_Rb / kappa_Xe / eta_Rb
+        projected_signal = lorentzian_Xe * (B_y - 1j * B_x) + 1j * scale_Rb * B_y
 
         # Time shift — identical to GroundBased2G.
         time_shift = self.delay_from_geocenter(ra, dec, gmst)
