@@ -6,7 +6,11 @@ from itertools import combinations
 from pathlib import Path
 from jimgw.core.single_event.data import PowerSpectrum
 from jimgw.core.single_event.detector import get_ET, get_H1, get_quantum_sensor_preset
-from jimgw.core.constants import EARTH_SEMI_MAJOR_AXIS, EARTH_SEMI_MINOR_AXIS
+from jimgw.core.constants import (
+    C_SI,
+    EARTH_SEMI_MAJOR_AXIS,
+    EARTH_SEMI_MINOR_AXIS,
+)
 from jimgw.core.single_event.polarization import rotated_wave_basis
 from jimgw.core.single_event.time_utils import (
     greenwich_mean_sidereal_time as compute_gmst,
@@ -250,9 +254,7 @@ class TestQuantumSensor:
         frequency = jnp.linspace(5.0, 15.0, 32)
         B_sky = self._B_sky(32)
         out_psi0 = self.qs.fd_response(frequency, B_sky, self._params(psi=0.0))
-        out_psi1 = self.qs.fd_response(
-            frequency, B_sky, self._params(psi=jnp.pi / 4)
-        )
+        out_psi1 = self.qs.fd_response(frequency, B_sky, self._params(psi=jnp.pi / 4))
         assert not jnp.allclose(out_psi0, out_psi1)
 
     def test_matches_manual_projection(self):
@@ -262,7 +264,9 @@ class TestQuantumSensor:
         B_sky = self._B_sky(8)
         params = self._params()
 
-        m, n = rotated_wave_basis(params["ra"], params["dec"], params["psi"], params["gmst"])
+        m, n = rotated_wave_basis(
+            params["ra"], params["dec"], params["psi"], params["gmst"]
+        )
         B_vec = jnp.einsum("i,f->if", m, B_sky["p"]) + jnp.einsum(
             "i,f->if", n, B_sky["c"]
         )
@@ -275,9 +279,66 @@ class TestQuantumSensor:
             params["ra"], params["dec"], params["gmst"]
         )
         time_shift += params["trigger_time"] - self.qs.start_time + params["t_c"]
-        expected = lorentzian * (B_y - 1j * B_x) * jnp.exp(
+        expected = (
+            lorentzian
+            * (B_y - 1j * B_x)
+            * jnp.exp(-2j * jnp.pi * frequency * time_shift)
+        )
+
+        actual = self.qs.fd_response(frequency, B_sky, params)
+        assert jnp.allclose(actual, expected)
+
+    def _B_sky_scalar(self, n=32):
+        key = jax.random.PRNGKey(1)
+        B_s = jax.random.normal(key, (n,)) + 1j * jax.random.normal(key, (n,))
+        return {"s": B_s}
+
+    def test_scalar_finite_output(self):
+        frequency = jnp.linspace(5.0, 15.0, 32)
+        out = self.qs.fd_response(frequency, self._B_sky_scalar(32), self._params())
+        assert out.shape == frequency.shape
+        assert_all_finite(out)
+
+    def test_scalar_is_psi_independent(self):
+        """A longitudinal field has no polarization angle."""
+        frequency = jnp.linspace(5.0, 15.0, 32)
+        B_sky = self._B_sky_scalar(32)
+        out_psi0 = self.qs.fd_response(frequency, B_sky, self._params(psi=0.0))
+        out_psi1 = self.qs.fd_response(frequency, B_sky, self._params(psi=jnp.pi / 4))
+        assert jnp.allclose(out_psi0, out_psi1)
+
+    def test_scalar_matches_manual_projection(self):
+        """The scalar branch projects along the line of sight, not the m/n basis."""
+        frequency = jnp.linspace(5.0, 15.0, 8)
+        B_sky = self._B_sky_scalar(8)
+        params = self._params()
+
+        sky = self.qs.sky_vector(params["ra"], params["dec"], params["gmst"])
+        B_vec = jnp.einsum("i,f->if", sky, B_sky["s"])
+        arm_x, arm_y = self.qs.arms
+        B_x = jnp.einsum("i,if->f", arm_x, B_vec)
+        B_y = jnp.einsum("i,if->f", arm_y, B_vec)
+        tau_inv = 1.0 / self.qs.tau_Xe
+        lorentzian = tau_inv / (2j * jnp.pi * (frequency - self.qs.freq_Xe) + tau_inv)
+        scale_Rb = 2.42e-7 / 5.76e-4 / 100.0
+        time_shift = self.qs.delay_from_geocenter(
+            params["ra"], params["dec"], params["gmst"]
+        )
+        time_shift += params["trigger_time"] - self.qs.start_time + params["t_c"]
+        expected = (lorentzian * (B_y - 1j * B_x) + 1j * scale_Rb * B_y) * jnp.exp(
             -2j * jnp.pi * frequency * time_shift
         )
 
         actual = self.qs.fd_response(frequency, B_sky, params)
         assert jnp.allclose(actual, expected)
+
+    def test_sky_vector_points_at_source(self):
+        """sky_vector is the unit vector delay_from_geocenter projects onto."""
+        params = self._params()
+        sky = self.qs.sky_vector(params["ra"], params["dec"], params["gmst"])
+        assert jnp.allclose(jnp.linalg.norm(sky), 1.0)
+        expected_delay = -jnp.dot(sky, self.qs.vertex) / C_SI
+        actual_delay = self.qs.delay_from_geocenter(
+            params["ra"], params["dec"], params["gmst"]
+        )
+        assert jnp.allclose(actual_delay, expected_delay)

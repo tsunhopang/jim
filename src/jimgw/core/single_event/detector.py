@@ -1108,31 +1108,64 @@ class QuantumSensor(Detector):
         z = ((minor / major) ** 2 * r + h) * jnp.sin(lat)
         return jnp.array([x, y, z])
 
+    @staticmethod
+    def sky_vector(
+        ra: FloatScalar, dec: FloatScalar, gmst: FloatScalar
+    ) -> Float[Array, "3"]:
+        """Unit vector from the geocenter toward the source, in Earth-fixed coords.
+
+        Args:
+            ra (Float): Right ascension of the source in radians.
+            dec (Float): Declination of the source in radians.
+            gmst (Float): Greenwich mean sidereal time in radians.
+
+        Returns:
+            Float[Array, "3"]: Cartesian unit vector.
+        """
+        phi = ra - jnp.mod(gmst, 2 * jnp.pi)
+        theta = jnp.pi / 2 - dec
+        return jnp.array(
+            [
+                jnp.sin(theta) * jnp.cos(phi),
+                jnp.sin(theta) * jnp.sin(phi),
+                jnp.cos(theta),
+            ]
+        )
+
     def fd_response(
         self,
         frequency: Float[Array, " n_sample"],
         B_sky: dict[str, Float[Array, " n_sample"]],
         params: dict,
     ) -> Complex[Array, " n_sample"]:
-        r"""Compute the frequency-domain sensor response to a dark photon signal.
+        r"""Compute the frequency-domain sensor response to a dark field signal.
 
         The response is
 
         $$s(\nu) = \frac{1}{2\pi i(\nu - f_0) * T_2 + 1}\bigl[B_y(\nu) - i\,B_x(\nu)\bigr]$$
 
-        where $B_x$ and $B_y$ are the dark photon magnetic field projected onto the
+        where $B_x$ and $B_y$ are the effective magnetic field projected onto the
         x and y arms via dot product, $T_2$ is ``tau_Xe``, and $f_0$ is ``freq_Xe``.
+
+        Two field geometries are supported, selected by the keys of ``B_sky``. A
+        dark photon field is transverse, so it carries two linear polarizations
+        in the sky-frame basis. A scalar field couples through
+        ``B_eff = eps_BD * grad(phi**k)``, whose radiation-zone gradient points
+        along the line of sight, so it is longitudinal and has a single
+        component and no dependence on ``psi``.
 
         Args:
             frequency: Array of frequency samples in Hz.
-            B_sky: Dictionary with keys ``"p"``/``"c"`` holding the two linear
-                polarization amplitudes of the dark photon field (along the
-                un-rotated sky-frame theta-hat/phi-hat directions), each of
-                shape ``(n_sample,)``. Reuses the GW plus/cross key naming so
-                the same likelihood machinery can thread the waveform output
-                straight through.
+            B_sky: Either keys ``"p"``/``"c"``, holding the two linear
+                polarization amplitudes of a dark photon field (along the
+                un-rotated sky-frame theta-hat/phi-hat directions), or the
+                single key ``"s"``, holding the longitudinal amplitude of a
+                scalar-induced effective field. Each of shape ``(n_sample,)``.
+                The plus/cross naming is reused from the GW case so the same
+                likelihood machinery can thread the waveform output through.
             params: Source parameters including ``ra``, ``dec``, ``psi``,
-                ``eps_BD``, ``gmst``, ``trigger_time``, and ``t_c``.
+                ``eps_BD``, ``gmst``, ``trigger_time``, and ``t_c``. ``psi`` is
+                unused for a scalar field.
 
         Returns:
             Complex frequency-domain sensor output.
@@ -1141,12 +1174,18 @@ class QuantumSensor(Detector):
 
         arm_x, arm_y = self.arms
 
-        # Rotate the sky-frame basis by the polarization angle psi, then embed
-        # the field's two linear polarizations into geocentric Cartesian coords.
-        m, n = rotated_wave_basis(ra, dec, psi, gmst)
-        B_vec = jnp.einsum("i,f->if", m, B_sky["p"]) + jnp.einsum(
-            "i,f->if", n, B_sky["c"]
-        )
+        if "s" in B_sky:
+            # Longitudinal field, along the propagation direction. sky_vector
+            # points from the geocenter toward the source, so it is the reverse
+            # of the propagation direction; the sign is absorbed by eps_BD.
+            B_vec = jnp.einsum("i,f->if", self.sky_vector(ra, dec, gmst), B_sky["s"])
+        else:
+            # Rotate the sky-frame basis by the polarization angle psi, then embed
+            # the field's two linear polarizations into geocentric Cartesian coords.
+            m, n = rotated_wave_basis(ra, dec, psi, gmst)
+            B_vec = jnp.einsum("i,f->if", m, B_sky["p"]) + jnp.einsum(
+                "i,f->if", n, B_sky["c"]
+            )
 
         # Assuming kinetic mixing, the bright magnetic field is linear to the
         # dark magnetic field by a coupling coefficient, namely, eps_BD

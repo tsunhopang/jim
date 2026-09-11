@@ -12,6 +12,7 @@ from jimgw.core.single_event.waveform import (
     RippleIMRPhenomXHM,
     RippleIMRPhenomXP,
     RippleIMRPhenomXPHM,
+    RippleScalarWaveform,
     RippleSineGaussian,
     RippleTaylorF2,
 )
@@ -31,6 +32,7 @@ _REGISTRY = {
     "IMRPhenomXPHM": RippleIMRPhenomXPHM,
     "SineGaussian": RippleSineGaussian,
     "DarkPhotonWaveform": RippleDarkPhotonWaveform,
+    "ScalarWaveform": RippleScalarWaveform,
 }
 
 
@@ -45,6 +47,20 @@ def build_waveform(cfg: WaveformConfig):
             "Built waveform: DarkPhotonWaveform(base=%s(f_ref=%.1f))",
             type(base_waveform).__name__,
             cfg.f_ref,
+        )
+        return waveform
+
+    if cfg.approximant == "ScalarWaveform":
+        assert cfg.base_approximant is not None
+        assert cfg.scalar_power is not None
+        base_cls = _REGISTRY[cfg.base_approximant]
+        base_waveform = base_cls(f_ref=cfg.f_ref)
+        waveform = RippleScalarWaveform(base_waveform, k=cfg.scalar_power)
+        logger.info(
+            "Built waveform: ScalarWaveform(base=%s(f_ref=%.1f), k=%d)",
+            type(base_waveform).__name__,
+            cfg.f_ref,
+            cfg.scalar_power,
         )
         return waveform
 

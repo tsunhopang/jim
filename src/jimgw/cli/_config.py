@@ -134,7 +134,11 @@ Approximant = Literal[
     "IMRPhenomXPHM",
     "SineGaussian",
     "DarkPhotonWaveform",
+    "ScalarWaveform",
 ]
+
+#: Approximants that wrap another approximant rather than being one themselves.
+WRAPPER_APPROXIMANTS = ("DarkPhotonWaveform", "ScalarWaveform")
 
 
 class WaveformConfig(BaseModel):
@@ -142,19 +146,28 @@ class WaveformConfig(BaseModel):
     approximant: Approximant
     f_ref: float = 20.0
     base_approximant: Approximant | None = None
+    scalar_power: int | None = None
 
     @model_validator(mode="after")
     def _check_base_approximant(self) -> "WaveformConfig":
-        if self.approximant == "DarkPhotonWaveform":
+        if self.approximant in WRAPPER_APPROXIMANTS:
             if self.base_approximant is None:
                 raise ValueError(
-                    "DarkPhotonWaveform requires base_approximant to be set"
+                    f"{self.approximant} requires base_approximant to be set"
                 )
-            if self.base_approximant == "DarkPhotonWaveform":
-                raise ValueError("base_approximant cannot be DarkPhotonWaveform")
+            if self.base_approximant in WRAPPER_APPROXIMANTS:
+                raise ValueError(f"base_approximant cannot be {self.base_approximant}")
         elif self.base_approximant is not None:
             raise ValueError(
-                "base_approximant is only valid when approximant is DarkPhotonWaveform"
+                "base_approximant is only valid when approximant is one of "
+                f"{WRAPPER_APPROXIMANTS}"
+            )
+        if self.approximant == "ScalarWaveform":
+            if self.scalar_power not in (2, 3):
+                raise ValueError("ScalarWaveform requires scalar_power to be 2 or 3")
+        elif self.scalar_power is not None:
+            raise ValueError(
+                "scalar_power is only valid when approximant is ScalarWaveform"
             )
         return self
 
