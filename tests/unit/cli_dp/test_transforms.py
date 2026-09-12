@@ -1,10 +1,10 @@
-"""Unit tests for dark-photon periodic-parameter inference."""
+"""Unit tests for dark-photon transform and periodic-parameter inference."""
 
 import jax.numpy as jnp
 import pytest
 
-from jimgw.cli._config import PriorConfig, UniformSpec
-from jimgw.cli_dp._transforms import infer_periodic
+from jimgw.cli._config import PriorConfig, UniformSpec, WaveformConfig
+from jimgw.cli_dp._transforms import infer_likelihood_transforms, infer_periodic
 
 TWO_PI = 2 * jnp.pi
 
@@ -58,3 +58,28 @@ def test_nf_prior_without_angles_adds_nothing():
 def test_both_angles_handled_from_nf(name):
     nf = StubNFPrior([name])
     assert infer_periodic(PriorConfig({}), nf) == {name: (0.0, TWO_PI)}
+
+
+_DARK_PHOTON_CFG = WaveformConfig(
+    approximant="DarkPhotonWaveform", base_approximant="IMRPhenomD", f_ref=20.0
+)
+
+
+def test_no_likelihood_transforms_without_q_or_lambda_ratio():
+    assert infer_likelihood_transforms(frozenset({"M_c"}), _DARK_PHOTON_CFG) == []
+
+
+def test_likelihood_transforms_cover_q_and_lambda_ratio():
+    transforms = infer_likelihood_transforms(
+        frozenset({"q", "Lambda_ratio"}), _DARK_PHOTON_CFG
+    )
+    names = [
+        t.__name__ if hasattr(t, "__name__") else type(t).__name__ for t in transforms
+    ]
+    assert names == ["BijectiveTransform", "ScaleTransform"]
+
+    p = {"M_c": 30.0, "q": 0.8, "Lambda_ratio": 1.0}
+    for transform in transforms:
+        p = dict(transform.forward(p))
+    assert p["Lambda"] == pytest.approx(2.14e4)
+    assert "eta" in p

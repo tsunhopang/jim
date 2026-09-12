@@ -17,6 +17,7 @@ they are derived automatically from the parametrization.
 """
 
 import logging
+from typing import Optional
 
 import jax.numpy as jnp
 from jax.numpy import pi as _PI
@@ -31,6 +32,7 @@ from jimgw.cli._config import (
     SineSpec,
     UniformSpec,
     UniformSphereSpec,
+    WaveformConfig,
 )
 from jimgw.cli._utils import (
     DETECTOR_SKY_PARAMS as _DETECTOR_SKY_PARAMS,
@@ -53,6 +55,7 @@ from jimgw.core.transforms import (
     NtoMTransform,
     PowerLawTransform,
     RayleighTransform,
+    ScaleTransform,
     SineTransform,
     reverse_bijective_transform,
 )
@@ -131,12 +134,39 @@ def infer_sample_transforms(
     return sample_transforms
 
 
+def lambda_ratio_transform(
+    prior_params: frozenset[str],
+    waveform_cfg: WaveformConfig,
+) -> list[NtoMTransform]:
+    """``Lambda_ratio → Lambda`` for dark-field approximants.
+
+    Dark-field waveforms take the operator cutoff ``Lambda`` in GeV, but sampling
+    uses the dimensionless ``Lambda_ratio = Lambda / Lambda_ref`` so the prior is
+    the same for every operator.  Returns an empty list when ``Lambda_ratio`` is
+    not sampled.
+    """
+    if "Lambda_ratio" not in prior_params:
+        return []
+
+    reference = waveform_cfg.lambda_reference
+    if reference is None:
+        raise ValueError(
+            f"Lambda_ratio is in [prior] but approximant "
+            f"{waveform_cfg.approximant!r} has no reference cutoff. It is only "
+            "meaningful for DarkPhotonWaveform and ScalarWaveform."
+        )
+
+    _, lambda_ref = reference
+    logger.debug("Added ScaleTransform(Lambda_ratio → Lambda, %g GeV)", lambda_ref)
+    return [ScaleTransform((["Lambda_ratio"], ["Lambda"]), lambda_ref)]
+
+
 def infer_likelihood_transforms(
     prior_params: frozenset[str],
     trigger_time: float,
     ifos: list[GroundBased2G],
     sampling_cfg: SamplingConfig,
-    waveform_f_ref: float,
+    waveform_cfg: WaveformConfig,
     phase_marginalization: bool = False,
 ) -> list[NtoMTransform]:
     """Infer likelihood transforms (prior space → likelihood space).
@@ -146,9 +176,10 @@ def infer_likelihood_transforms(
         trigger_time: GPS trigger time (from data config).
         ifos: List of detectors (needed for sky/time reverse transforms).
         sampling_cfg: [sampling] section config.
-        waveform_f_ref: Reference frequency from [waveform] — passed to
+        waveform_cfg: [waveform] section config. ``f_ref`` is passed to
             ``SpinAnglesToCartesianSpinTransform`` to match the waveform
-            spin-angle convention.
+            spin-angle convention, and the approximant selects the dark-field
+            reference cutoff for ``Lambda_ratio``.
         phase_marginalization: When ``True``, ``phase_c`` is not a free
             parameter, so ``SpinAnglesToCartesianSpinTransform`` is built
             with ``fixed_phase=True`` (uses ``phase_c=0``).
@@ -156,6 +187,7 @@ def infer_likelihood_transforms(
     Returns:
         List of N-to-M transforms to pass to Jim as ``likelihood_transforms``.
     """
+    waveform_f_ref = waveform_cfg.f_ref
     likelihood_transforms: list[NtoMTransform] = []
 
     has_j_frame = bool(prior_params & _J_FRAME_SPIN_PARAMS)
@@ -217,6 +249,9 @@ def infer_likelihood_transforms(
             "Added reverse GeocentricArrivalTimeToDetectorArrivalTimeTransform "
             "(t_det prior → t_c for likelihood)"
         )
+
+    # Lambda_ratio → Lambda (dark-field operator cutoff)
+    likelihood_transforms.extend(lambda_ratio_transform(prior_params, waveform_cfg))
 
     logger.info(
         "likelihood transforms: %s",
@@ -393,11 +428,16 @@ def to_likelihood_space(
     trigger_time: float,
     ifos: list[GroundBased2G],
     time_frame: str,
+    lambda_ref: Optional[float] = None,
 ) -> dict[str, float]:
     """Convert injection/reference parameters to likelihood space if needed.
 
     Handles: q→eta, J-frame spins→Cartesian, spherical spins→Cartesian,
-    azimuth/zenith→ra/dec, t_det→t_c.
+    azimuth/zenith→ra/dec, t_det→t_c, Lambda_ratio→Lambda.
+
+    ``lambda_ref`` is the dark-field reference cutoff in GeV, from
+    ``WaveformConfig.lambda_reference``; it is required only when ``params``
+    carries ``Lambda_ratio``.
 
     The detector-frame conversions (azimuth/zenith and t_det) require
     ``trigger_time`` and ``ifos`` to be supplied.  These parameters are valid
@@ -441,5 +481,15 @@ def to_likelihood_space(
     # q → eta
     if "q" in p and "eta" not in p:
         p = dict(MassRatioToSymmetricMassRatioTransform.forward(p))
+
+    # Lambda_ratio → Lambda
+    if "Lambda_ratio" in p:
+        if lambda_ref is None:
+            raise ValueError(
+                "Lambda_ratio was given but the approximant has no reference "
+                "cutoff; it is only meaningful for DarkPhotonWaveform and "
+                "ScalarWaveform."
+            )
+        p = dict(ScaleTransform((["Lambda_ratio"], ["Lambda"]), lambda_ref).forward(p))
 
     return {k: float(v) for k, v in p.items()}

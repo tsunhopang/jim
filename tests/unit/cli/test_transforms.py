@@ -3,7 +3,13 @@
 import pytest
 from pydantic import ValidationError
 
-from jimgw.cli._config import PipelineConfig, PriorConfig, SamplingConfig, UniformSpec
+from jimgw.cli._config import (
+    PipelineConfig,
+    PriorConfig,
+    SamplingConfig,
+    UniformSpec,
+    WaveformConfig,
+)
 from jimgw.cli._prior import adapt_prior_for_ns_time
 
 
@@ -46,7 +52,9 @@ def _make_ifos():
 TRIGGER_TIME = 1126259462.4
 
 
-def _infer(prior_params, sky_frame="detector", time_frame="detector"):
+def _infer(
+    prior_params, sky_frame="detector", time_frame="detector", waveform_cfg=None
+):
 
     from jimgw.cli._transforms import (
         infer_likelihood_transforms,
@@ -68,7 +76,7 @@ def _infer(prior_params, sky_frame="detector", time_frame="detector"):
         TRIGGER_TIME,
         ifos,
         cfg,
-        20.0,
+        waveform_cfg or WaveformConfig(approximant="IMRPhenomXAS", f_ref=20.0),
     )
     return sample_t, lh_t
 
@@ -493,3 +501,82 @@ def test_adapt_ns_time_t_det_geocentric():
     assert isinstance(spec, UniformSpec)
     assert spec.min == lo
     assert spec.max == hi
+
+
+# ---------------------------------------------------------------------------
+# Dark-field operator cutoff: Lambda_ratio -> Lambda
+# ---------------------------------------------------------------------------
+
+
+_DARK_PHOTON_CFG = WaveformConfig(
+    approximant="DarkPhotonWaveform", base_approximant="IMRPhenomD", f_ref=20.0
+)
+_SCALAR_K3_CFG = WaveformConfig(
+    approximant="ScalarWaveform",
+    base_approximant="IMRPhenomD",
+    f_ref=20.0,
+    scalar_power=3,
+)
+
+
+def test_no_lambda_ratio_transform_when_not_sampled():
+    from jimgw.cli._transforms import lambda_ratio_transform
+
+    assert lambda_ratio_transform(frozenset({"M_c"}), _DARK_PHOTON_CFG) == []
+
+
+@pytest.mark.parametrize(
+    ("waveform_cfg", "lambda_ref"),
+    [(_DARK_PHOTON_CFG, 2.14e4), (_SCALAR_K3_CFG, 1.003e-2)],
+)
+def test_lambda_ratio_transform_rescales_to_reference(waveform_cfg, lambda_ref):
+    from jimgw.cli._transforms import lambda_ratio_transform
+
+    (transform,) = lambda_ratio_transform(frozenset({"Lambda_ratio"}), waveform_cfg)
+    assert transform.name_mapping == (["Lambda_ratio"], ["Lambda"])
+
+    out = transform.forward({"M_c": 30.0, "Lambda_ratio": 2.0})
+    assert "Lambda_ratio" not in out
+    assert out["Lambda"] == pytest.approx(2.0 * lambda_ref)
+    assert out["M_c"] == 30.0
+
+
+def test_lambda_ratio_transform_rejects_gw_approximant():
+    from jimgw.cli._transforms import lambda_ratio_transform
+
+    cfg = WaveformConfig(approximant="IMRPhenomXAS", f_ref=20.0)
+    with pytest.raises(ValueError, match="no reference cutoff"):
+        lambda_ratio_transform(frozenset({"Lambda_ratio"}), cfg)
+
+
+def test_lambda_ratio_transform_is_inferred():
+    _, lh_t = _infer({"M_c", "Lambda_ratio"}, waveform_cfg=_DARK_PHOTON_CFG)
+    assert "ScaleTransform" in [type(t).__name__ for t in lh_t]
+
+
+def test_to_likelihood_space_converts_lambda_ratio():
+    from jimgw.cli._transforms import to_likelihood_space
+
+    out = to_likelihood_space(
+        {"M_c": 30.0, "Lambda_ratio": 1.0},
+        waveform_f_ref=20.0,
+        trigger_time=TRIGGER_TIME,
+        ifos=_make_ifos(),
+        time_frame="detector",
+        lambda_ref=2.14e4,
+    )
+    assert out["Lambda"] == pytest.approx(2.14e4)
+    assert "Lambda_ratio" not in out
+
+
+def test_to_likelihood_space_requires_lambda_ref():
+    from jimgw.cli._transforms import to_likelihood_space
+
+    with pytest.raises(ValueError, match="no reference cutoff"):
+        to_likelihood_space(
+            {"M_c": 30.0, "Lambda_ratio": 1.0},
+            waveform_f_ref=20.0,
+            trigger_time=TRIGGER_TIME,
+            ifos=_make_ifos(),
+            time_frame="detector",
+        )

@@ -52,7 +52,7 @@ def phenomPv2_params():
 @pytest.fixture
 def dark_photon_params(phenomD_params):
     """Standard parameter set for RippleDarkPhotonWaveform (IMRPhenomD base) tests."""
-    return {**phenomD_params, "sigma_1": 0.1, "sigma_2": -0.05}
+    return {**phenomD_params, "sigma_1": 0.1, "sigma_2": -0.05, "Lambda": 2.14e4}
 
 
 @pytest.fixture
@@ -329,10 +329,15 @@ class TestRippleDarkPhotonWaveform:
     """Test suite for RippleDarkPhotonWaveform (base=IMRPhenomD) waveform model."""
 
     def test_parameter_names(self):
-        """parameter_names should append sigma_1, sigma_2 to the base waveform's."""
+        """parameter_names should append the dark-field parameters to the base's."""
         base = RippleIMRPhenomD(f_ref=20.0)
         waveform = RippleDarkPhotonWaveform(base)
-        assert waveform.parameter_names == (*base.parameter_names, "sigma_1", "sigma_2")
+        assert waveform.parameter_names == (
+            *base.parameter_names,
+            "sigma_1",
+            "sigma_2",
+            "Lambda",
+        )
 
     def test_initialization_and_call(self, dark_photon_params):
         """Test waveform initialization and basic generation."""

@@ -1,5 +1,5 @@
 import logging
-from typing import assert_never
+from typing import Optional, assert_never
 
 from jimgw.cli._config import (
     DataConfig,
@@ -24,6 +24,7 @@ def build_data(
     f_max: float,
     waveform=None,
     time_frame: str = "detector",
+    lambda_ref: Optional[float] = None,
 ) -> list[GroundBased2G]:
     """Construct a list of detectors populated with strain data and PSDs.
 
@@ -43,7 +44,13 @@ def build_data(
         _load_gwosc(ifos, data_cfg)
     elif isinstance(data_cfg, InjectionDataConfig):
         _load_injection(
-            ifos, data_cfg, waveform, f_min=f_min, f_max=f_max, time_frame=time_frame
+            ifos,
+            data_cfg,
+            waveform,
+            f_min=f_min,
+            f_max=f_max,
+            time_frame=time_frame,
+            lambda_ref=lambda_ref,
         )
     elif isinstance(data_cfg, FileDataConfig):
         _load_files(ifos, data_cfg)
@@ -89,6 +96,7 @@ def _load_injection(
     f_min: float,
     f_max: float,
     time_frame: str = "detector",
+    lambda_ref: Optional[float] = None,
 ) -> None:
     parameters = to_likelihood_space(
         cfg.injection_parameters,
@@ -96,6 +104,7 @@ def _load_injection(
         trigger_time=cfg.trigger_time,
         ifos=ifos,
         time_frame=time_frame,
+        lambda_ref=lambda_ref,
     )
 
     for ifo in ifos:

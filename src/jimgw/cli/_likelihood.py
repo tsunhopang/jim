@@ -41,6 +41,7 @@ def build_likelihood(
     prior: CombinePrior,
     likelihood_transforms: list[NtoMTransform],
     data_cfg: DataConfig,
+    lambda_ref: Optional[float] = None,
 ) -> Union[
     TransientLikelihoodFD,
     HeterodynedTransientLikelihoodFD,
@@ -94,6 +95,7 @@ def build_likelihood(
                 trigger_time=trigger_time,
                 ifos=ifos,
                 time_frame=time_frame,
+                lambda_ref=lambda_ref,
             )
             logger.info(
                 "Using injection parameters as heterodyne reference: %s",

@@ -28,9 +28,10 @@ class InjectionConfig(BaseModel):
     Off by default (`data.injection` unset): PE then runs directly on the
     real segment, as before. When set, a deterministic signal computed from
     `injection_parameters` (likelihood-space parameter names, e.g. M_c, eta,
-    s1_z, s2_z, t_c, phase_c, iota, ra, dec, psi, sigma_1, sigma_2, eps_BD,
-    plus either `d_L` or `target_optimal_snr` -- see below) is added to each
-    sensor's real frequency-domain strain.
+    s1_z, s2_z, t_c, phase_c, iota, ra, dec, psi, sigma_1, sigma_2,
+    Lambda_ratio, plus either `d_L` or `target_optimal_snr` -- see below) is
+    added to each sensor's real frequency-domain strain. `Lambda_ratio` is
+    rescaled to the waveform's `Lambda` using the operator's reference cutoff.
 
     Exactly one of `injection_parameters["d_L"]` or `target_optimal_snr` must
     be given: either inject at a fixed luminosity distance, or let d_L be

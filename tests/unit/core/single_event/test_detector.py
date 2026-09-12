@@ -230,7 +230,6 @@ class TestQuantumSensor:
             "gmst": float(compute_gmst(GPS_TIME)),
             "trigger_time": GPS_TIME,
             "t_c": 0.0,
-            "eps_BD": 1.0,
         }
         params.update(overrides)
         return params
@@ -279,10 +278,11 @@ class TestQuantumSensor:
             params["ra"], params["dec"], params["gmst"]
         )
         time_shift += params["trigger_time"] - self.qs.start_time + params["t_c"]
-        expected = (
-            lorentzian
-            * (B_y - 1j * B_x)
-            * jnp.exp(-2j * jnp.pi * frequency * time_shift)
+        # The Rb leakage term of transfer_function.tex eq. (44), scaled by
+        # kappa_Rb / (kappa_Xe * eta).
+        scale_Rb = 2.42e-7 / 5.76e-4 / 100.0
+        expected = (lorentzian * (B_y - 1j * B_x) + 1j * scale_Rb * B_y) * jnp.exp(
+            -2j * jnp.pi * frequency * time_shift
         )
 
         actual = self.qs.fd_response(frequency, B_sky, params)

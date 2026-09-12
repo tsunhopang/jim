@@ -377,3 +377,54 @@ def test_ns_aw_non_uniform_t_det_rejected():
                 "sampler": {"type": "blackjax-ns-aw"},
             }
         )
+
+
+# ---------------------------------------------------------------------------
+# Dark-field operator cutoff reference
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ({"approximant": "DarkPhotonWaveform", "base_approximant": "IMRPhenomD"}, 2.14e4),
+        (
+            {
+                "approximant": "ScalarWaveform",
+                "base_approximant": "IMRPhenomD",
+                "scalar_power": 2,
+            },
+            1.160,
+        ),
+        (
+            {
+                "approximant": "ScalarWaveform",
+                "base_approximant": "IMRPhenomD",
+                "scalar_power": 3,
+            },
+            1.003e-2,
+        ),
+    ],
+)
+def test_lambda_reference_for_dark_field_approximants(raw, expected):
+    cfg = WaveformConfig.model_validate(raw)
+    assert cfg.lambda_reference is not None
+    assert cfg.lambda_reference[1] == pytest.approx(expected)
+
+
+def test_lambda_reference_is_none_for_gw_approximant():
+    assert WaveformConfig(approximant="IMRPhenomXAS").lambda_reference is None
+
+
+def test_raw_lambda_prior_rejected():
+    with pytest.raises(ValidationError, match="Lambda_ratio"):
+        PriorConfig.model_validate(
+            {"Lambda": {"type": "power_law", "min": 1e3, "max": 1e6, "alpha": -1.0}}
+        )
+
+
+def test_lambda_ratio_prior_accepted():
+    cfg = PriorConfig.model_validate(
+        {"Lambda_ratio": {"type": "power_law", "min": 1.0, "max": 1e3, "alpha": -1.0}}
+    )
+    assert isinstance(cfg.root["Lambda_ratio"], PowerLawSpec)

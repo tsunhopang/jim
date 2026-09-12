@@ -160,12 +160,16 @@ def run(
     waveform = build_waveform(cfg.waveform)
 
     # Stage 3: data — injection runs receive the already-built waveform
+    lambda_reference = cfg.waveform.lambda_reference
+    lambda_ref = None if lambda_reference is None else lambda_reference[1]
+
     ifos = build_data(
         cfg.data,
         f_min=cfg.likelihood.f_min,
         f_max=cfg.likelihood.f_max,
         waveform=waveform,
         time_frame=cfg.sampling.time_frame,
+        lambda_ref=lambda_ref,
     )
 
     # NS-AW requires all sampling-space parameters in [0, 1].
@@ -195,7 +199,7 @@ def run(
         trigger_time,
         ifos,
         cfg.sampling,
-        cfg.waveform.f_ref,
+        cfg.waveform,
         phase_marginalization=cfg.likelihood.phase_marginalization,
     )
 
@@ -210,6 +214,7 @@ def run(
         likelihood_transforms=likelihood_transforms,
         data_cfg=cfg.data,
         time_frame=cfg.sampling.time_frame,
+        lambda_ref=lambda_ref,
     )
 
     # Stage 7: build Jim + run sampler

@@ -140,6 +140,30 @@ Approximant = Literal[
 #: Approximants that wrap another approximant rather than being one themselves.
 WRAPPER_APPROXIMANTS = ("DarkPhotonWaveform", "ScalarWaveform")
 
+#: Solar Fe-57 reference cutoff for each dark-field operator, in GeV: the
+#: C_p = C_n = 1 column of Note_pulsar_search.md Table 1. Sampling uses the
+#: dimensionless ratio `Lambda_ratio = Lambda / Lambda_ref`, so a posterior can be
+#: read directly against the existing bound. Keyed by (approximant,
+#: scalar_power); no GW approximant appears here.
+#:
+#: Comparing against the C_p = C_n = 1 column assumes C_p = C_n. Under the Schmidt
+#: model 129Xe has sigma_p = 0, so these sensors constrain C_n alone, for which the
+#: neutron-only column gives 2.00e4 GeV rather than 2.14e4 GeV.
+#:
+#: OPEN QUESTION on the dark-photon row: Note_pulsar_search.md eq. (1)/(5) defines
+#: the dipole operator without the 1/2 written below, and it is that normalization
+#: eq. (14) -- hence ripple's amplitude prefactor of 8 -- follows from. If Table 1's
+#: 21.4 TeV instead refers to the 1/2-normalized operator written here, Lambda_ratio
+#: is off by sqrt(2). Pending confirmation from the note's author; no number changed.
+LAMBDA_REFERENCE: dict[tuple[str, Optional[int]], tuple[str, float]] = {
+    ("DarkPhotonWaveform", None): (
+        "v_h/(2 Lambda^2) Nbar sigma_munu N F'^munu",
+        2.14e4,
+    ),
+    ("ScalarWaveform", 2): ("d_mu(phi^2)/Lambda^2 Nbar gamma^mu gamma_5 N", 1.160),
+    ("ScalarWaveform", 3): ("d_mu(phi^3)/Lambda^3 Nbar gamma^mu gamma_5 N", 1.003e-2),
+}
+
 
 class WaveformConfig(BaseModel):
     model_config = {"extra": "forbid"}
@@ -170,6 +194,11 @@ class WaveformConfig(BaseModel):
                 "scalar_power is only valid when approximant is ScalarWaveform"
             )
         return self
+
+    @property
+    def lambda_reference(self) -> Optional[tuple[str, float]]:
+        """Operator string and `Lambda_ref` in GeV, or None for a GW approximant."""
+        return LAMBDA_REFERENCE.get((self.approximant, self.scalar_power))
 
 
 # ---------------------------------------------------------------------------
@@ -283,6 +312,18 @@ class PriorConfig(RootModel[dict[str, PriorSpec]]):
     Insertion order is preserved (Python 3.7+, TOML spec) and determines
     the parameter ordering passed to CombinePrior.
     """
+
+    @model_validator(mode="after")
+    def _reject_raw_lambda(self) -> "PriorConfig":
+        if "Lambda" in self.root:
+            raise ValueError(
+                "`Lambda` is not a sampling parameter. Put the prior on "
+                "`Lambda_ratio = Lambda / Lambda_ref` instead, where Lambda_ref is the "
+                "solar Fe-57 bound for the configured operator: 2.14e4 GeV for "
+                "DarkPhotonWaveform, 1.160 GeV for ScalarWaveform with "
+                "scalar_power = 2, 1.003e-2 GeV for scalar_power = 3."
+            )
+        return self
 
 
 # ---------------------------------------------------------------------------

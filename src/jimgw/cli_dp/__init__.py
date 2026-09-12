@@ -35,7 +35,8 @@ psd_nperseg_duration = 8.0
 # injection_parameters.d_L or target_optimal_snr:
 # [data.injection]
 # target_optimal_snr = 30.0
-# injection_parameters = { M_c = 30.0, eta = 0.25, s1_z = 0.0, s2_z = 0.0, t_c = 0.0, phase_c = 0.0, iota = 0.0, ra = 1.5, dec = 0.5, psi = 0.3, sigma_1 = 0.2, sigma_2 = -0.2, eps_BD = 0.5 }
+# ScalarWaveform amplitude goes as sin(iota)**k, so iota = 0 injects nothing.
+# injection_parameters = { M_c = 30.0, eta = 0.25, s1_z = 0.0, s2_z = 0.0, t_c = 0.0, phase_c = 0.0, iota = 1.0, ra = 1.5, dec = 0.5, psi = 0.3, sigma_1 = 0.2, sigma_2 = -0.2, Lambda_ratio = 1.0 }
 
 [waveform]
 approximant = "DarkPhotonWaveform"
@@ -56,7 +57,14 @@ ra      = { type = "uniform",   min = 0.0,   max = 6.283185307179586 }  # 2π
 dec     = { type = "cosine" }
 sigma_1 = { type = "uniform",   min = -0.5,  max = 0.5   }
 sigma_2 = { type = "uniform",   min = -0.5,  max = 0.5   }
-eps_BD  = { type = "uniform",   min = 0.0,   max = 1.0   }
+# Operator cutoff as a ratio to the solar Fe-57 bound at C_p = C_n = 1
+# (Note_pulsar_search.md Table 1): Lambda_ratio = Lambda / Lambda_ref, with
+# Lambda_ref = 2.14e4 GeV for DarkPhotonWaveform, 1.160 GeV for ScalarWaveform
+# with scalar_power = 2, and 1.003e-2 GeV for scalar_power = 3. The same prior
+# therefore works for every operator. Log-uniform (power_law with alpha = -1) is
+# scale-invariant in the coupling; min = 1 searches only Lambda > Lambda_ref, the
+# region that would improve on the existing bound.
+Lambda_ratio = { type = "power_law", min = 1.0, max = 1e3, alpha = -1 }
 
 # To use a normalizing flow trained with `jim-nf` as an informed joint prior over
 # the parameters it was trained on, uncomment below and REMOVE those parameters from
@@ -182,9 +190,12 @@ def run(
     # Stage 2: waveform
     waveform = build_waveform(cfg.waveform)
 
+    lambda_reference = cfg.waveform.lambda_reference
+    lambda_ref = None if lambda_reference is None else lambda_reference[1]
+
     # Stage 3: data — real segment + PSD per sensor, optional injection
     sensors = build_sensors(
-        cfg.data, waveform, cfg.likelihood.f_min, cfg.likelihood.f_max
+        cfg.data, waveform, cfg.likelihood.f_min, cfg.likelihood.f_max, lambda_ref
     )
 
     # Stage 4: prior — config priors, optionally joined with a trained NF prior
@@ -202,9 +213,9 @@ def run(
             raise typer.Exit(code=2)
         prior = CombinePrior([nf_prior, prior])
 
-    # Stage 5: likelihood transform inference (only q -> eta, if present)
+    # Stage 5: likelihood transform inference (q -> eta and Lambda_ratio -> Lambda)
     prior_params = frozenset(prior.parameter_names)
-    likelihood_transforms = infer_likelihood_transforms(prior_params)
+    likelihood_transforms = infer_likelihood_transforms(prior_params, cfg.waveform)
 
     # Stage 6: likelihood
     likelihood = build_likelihood(cfg.likelihood, sensors, waveform, trigger_time)

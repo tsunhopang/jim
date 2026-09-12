@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 import jax.numpy as jnp
 
@@ -23,6 +24,7 @@ def build_sensors(
     waveform,
     f_min: float | dict[str, float],
     f_max: float | dict[str, float],
+    lambda_ref: Optional[float] = None,
 ) -> list[QuantumSensor]:
     """Load real analysis segments and PSDs for the configured quantum sensors.
 
@@ -91,7 +93,7 @@ def build_sensors(
 
     if cfg.injection is not None:
         params = _resolve_injection_parameters(
-            sensors, cfg.injection, waveform, f_min, f_max, cfg.trigger_time
+            sensors, cfg.injection, waveform, f_min, f_max, cfg.trigger_time, lambda_ref
         )
         optimal_snrs = [
             _inject_signal(qs, params, waveform, f_min, f_max, cfg.trigger_time)
@@ -113,8 +115,12 @@ def _resolve_injection_parameters(
     f_min: float | dict[str, float],
     f_max: float | dict[str, float],
     trigger_time: float,
+    lambda_ref: Optional[float] = None,
 ) -> dict[str, float]:
     """Return likelihood-space injection parameters with `d_L` resolved.
+
+    `Lambda_ratio` is rescaled to the `Lambda` the waveform expects, using the
+    operator's reference cutoff.
 
     If the user gave `d_L` directly, it is used as-is. If they gave
     `target_optimal_snr` instead, `d_L` is solved for by scaling a trial
@@ -122,6 +128,15 @@ def _resolve_injection_parameters(
     sensor is enough) so the network optimal SNR hits the target.
     """
     params = dict(injection.injection_parameters)
+    if "Lambda_ratio" in params:
+        if lambda_ref is None:
+            raise ValueError(
+                "injection_parameters has Lambda_ratio but the approximant has no "
+                "reference cutoff; it is only meaningful for DarkPhotonWaveform "
+                "and ScalarWaveform."
+            )
+        params["Lambda"] = params.pop("Lambda_ratio") * lambda_ref
+
     if injection.target_optimal_snr is None:
         return params
 

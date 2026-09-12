@@ -1149,23 +1149,25 @@ class QuantumSensor(Detector):
 
         Two field geometries are supported, selected by the keys of ``B_sky``. A
         dark photon field is transverse, so it carries two linear polarizations
-        in the sky-frame basis. A scalar field couples through
-        ``B_eff = eps_BD * grad(phi**k)``, whose radiation-zone gradient points
+        in the sky-frame basis. A scalar field couples through a ``B_eff``
+        proportional to ``grad(phi**k)``, whose radiation-zone gradient points
         along the line of sight, so it is longitudinal and has a single
         component and no dependence on ``psi``.
 
         Args:
             frequency: Array of frequency samples in Hz.
-            B_sky: Either keys ``"p"``/``"c"``, holding the two linear
-                polarization amplitudes of a dark photon field (along the
-                un-rotated sky-frame theta-hat/phi-hat directions), or the
-                single key ``"s"``, holding the longitudinal amplitude of a
-                scalar-induced effective field. Each of shape ``(n_sample,)``.
+            B_sky: The effective magnetic field already felt by the sensor
+                nucleus, as delivered by the waveform. Either keys
+                ``"p"``/``"c"``, holding the two linear polarization amplitudes
+                of a dark photon field (along the un-rotated sky-frame
+                theta-hat/phi-hat directions), or the single key ``"s"``,
+                holding the longitudinal amplitude of a scalar-induced
+                effective field. Each of shape ``(n_sample,)``.
                 The plus/cross naming is reused from the GW case so the same
                 likelihood machinery can thread the waveform output through.
             params: Source parameters including ``ra``, ``dec``, ``psi``,
-                ``eps_BD``, ``gmst``, ``trigger_time``, and ``t_c``. ``psi`` is
-                unused for a scalar field.
+                ``gmst``, ``trigger_time``, and ``t_c``. ``psi`` is unused for a
+                scalar field.
 
         Returns:
             Complex frequency-domain sensor output.
@@ -1177,7 +1179,8 @@ class QuantumSensor(Detector):
         if "s" in B_sky:
             # Longitudinal field, along the propagation direction. sky_vector
             # points from the geocenter toward the source, so it is the reverse
-            # of the propagation direction; the sign is absorbed by eps_BD.
+            # of the propagation direction; the overall sign is degenerate
+            # with a shift of phase_c.
             B_vec = jnp.einsum("i,f->if", self.sky_vector(ra, dec, gmst), B_sky["s"])
         else:
             # Rotate the sky-frame basis by the polarization angle psi, then embed
@@ -1187,16 +1190,23 @@ class QuantumSensor(Detector):
                 "i,f->if", n, B_sky["c"]
             )
 
-        # Assuming kinetic mixing, the bright magnetic field is linear to the
-        # dark magnetic field by a coupling coefficient, namely, eps_BD
-        B_vec *= params["eps_BD"]
-
         # Project onto each arm direction via dot product.
+        # B_y - i B_x below is not invariant under flipping arm_y: the sign of the
+        # -i B_x term encodes the amplifier's circular-polarization selectivity,
+        # fixed by the bias-field direction and the sign of gamma_Xe. The presets
+        # therefore imply a definite handedness per sensor, and arm_x cross arm_y
+        # differs between them (QS-I: -N, QS-II: +N, QS-III: +E, QS-IV: -N,
+        # QS-V: +E). Confirm that against the instrument diagram before trusting
+        # cross-sensor phase coherence.
         B_x = jnp.einsum("i,if->f", arm_x, B_vec)
         B_y = jnp.einsum("i,if->f", arm_y, B_vec)
 
-        # Lorentzian transfer function centred at freq_Xe with linewidth tau_Xe^{-1}.
-        # the data has the response from Xe at resonance calibrated to 1
+        # Lorentzian transfer function centred at freq_Xe with linewidth tau_Xe^{-1},
+        # from the simplified S_DM(f) of transfer_function.tex in its eta >> 1 limit.
+        # kappa_Xe and kappa_Rb are that note's transfer coefficients between the
+        # dark field and the pseudomagnetic field felt by 129Xe and 87Rb; they enter
+        # only through their ratio because the data has the response from Xe at
+        # resonance calibrated to 1.
         kappa_Xe = 5.76e-4
         kappa_Rb = 2.42e-7
         eta_Rb = 100.0

@@ -3,15 +3,17 @@
 Dark-photon `ra`/`dec` are consumed directly by `QuantumSensor.fd_response` —
 there is no detector-frame reparametrization the way GW sky position uses
 `SkyFrameToDetectorFrameSkyPositionTransform`. So, unlike
-`jimgw.cli._transforms`, no sample transforms are needed at all, and the only
-likelihood transform is an optional `q -> eta` conversion.
+`jimgw.cli._transforms`, no sample transforms are needed at all; the likelihood
+transforms are an optional `q -> eta` conversion and the `Lambda_ratio -> Lambda`
+rescaling shared with the GW CLI.
 """
 
 import logging
 
 import jax.numpy as jnp
 
-from jimgw.cli._config import PriorConfig, UniformSpec
+from jimgw.cli._config import PriorConfig, UniformSpec, WaveformConfig
+from jimgw.cli._transforms import lambda_ratio_transform
 from jimgw.core.single_event.transforms import MassRatioToSymmetricMassRatioTransform
 from jimgw.core.transforms import NtoMTransform
 
@@ -22,12 +24,16 @@ _NATURAL_PERIOD = {"ra": (0.0, 2 * jnp.pi), "phase_c": (0.0, 2 * jnp.pi)}
 _PERIODIC_PARAMS = tuple(_NATURAL_PERIOD)
 
 
-def infer_likelihood_transforms(prior_params: frozenset[str]) -> list[NtoMTransform]:
+def infer_likelihood_transforms(
+    prior_params: frozenset[str], waveform_cfg: WaveformConfig
+) -> list[NtoMTransform]:
     """Infer likelihood transforms (prior space -> likelihood space)."""
+    transforms: list[NtoMTransform] = []
     if "q" in prior_params:
         logger.debug("Added MassRatioToSymmetricMassRatioTransform")
-        return [MassRatioToSymmetricMassRatioTransform]
-    return []
+        transforms.append(MassRatioToSymmetricMassRatioTransform)
+    transforms.extend(lambda_ratio_transform(prior_params, waveform_cfg))
+    return transforms
 
 
 def infer_periodic(

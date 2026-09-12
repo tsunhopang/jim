@@ -48,6 +48,16 @@ def write_outputs(jim, cfg) -> None:
 
     diag_json = out_dir / "diagnostics.json"
     diag_data: dict = {"versions": _collect_versions(cfg.sampler.type)}
+    reference = cfg.waveform.lambda_reference
+    if reference is not None:
+        operator, lambda_ref = reference
+        diag_data["cutoff_reference"] = {
+            "parameter": "Lambda_ratio",
+            "definition": "Lambda / Lambda_ref",
+            "operator": operator,
+            "lambda_ref_GeV": lambda_ref,
+            "source": "Note_pulsar_search.md Table 1, C_p = C_n = 1",
+        }
     diag_data.update({k: float(v) for k, v in scalar_diag.items()})
     with open(diag_json, "w") as f:
         json.dump(diag_data, f, indent=2)
@@ -81,6 +91,7 @@ def write_outputs(jim, cfg) -> None:
                 ifos=list(jim.likelihood.detectors),
                 time_frame=cfg.sampling.time_frame,
                 jim=jim,
+                lambda_ref=None if reference is None else reference[1],
             )
             if cfg.data.type == "injection"
             else None
@@ -96,6 +107,7 @@ def _injection_truths_in_prior_space(
     ifos: list[GroundBased2G],
     time_frame: str,
     jim,
+    lambda_ref: Optional[float] = None,
 ) -> Optional[dict[str, float]]:
     """Convert injection parameters to prior space for corner plot truth markers.
 
@@ -111,6 +123,7 @@ def _injection_truths_in_prior_space(
         trigger_time=trigger_time,
         ifos=ifos,
         time_frame=time_frame,
+        lambda_ref=lambda_ref,
     )
     p = {k: jnp.float64(v) for k, v in p.items()}
 

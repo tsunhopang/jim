@@ -515,10 +515,9 @@ class TestJimPriorLikelihoodConsistencyChecks:
         )
         Jim(likelihood=lh, prior=prior, sampler_config=_tiny_flowmc_config())
 
-    def test_quantum_sensor_requires_eps_BD_raises(self):
-        # eps_BD is only consumed by QuantumSensor, so it must be demanded when one is
-        # present and ignored otherwise (test_prior_all_consumed_no_error covers the
-        # interferometer case).
+    def test_quantum_sensor_demands_no_extra_parameter(self):
+        # The dark-field coupling now lives in the waveform's own parameter_names, so a
+        # QuantumSensor no longer makes the likelihood demand anything beyond them.
         from jimgw.core.single_event.detector import get_quantum_sensor_preset
 
         prior = CombinePrior(
@@ -528,15 +527,13 @@ class TestJimPriorLikelihoodConsistencyChecks:
                 UniformPrior(-1.57, 1.57, parameter_names=["dec"]),
                 UniformPrior(0.0, 3.14, parameter_names=["psi"]),
                 UniformPrior(-0.1, 0.1, parameter_names=["t_c"]),
-                # eps_BD intentionally omitted
             ]
         )
         lh = self._make_mock_single_event_likelihood(
             waveform_parameter_names=("M_c", "ra", "dec", "psi", "t_c"),
             detectors=[get_quantum_sensor_preset()["QS-I"]],
         )
-        with pytest.raises(ValueError, match=r"\['eps_BD'\]"):
-            Jim(likelihood=lh, prior=prior, sampler_config=_tiny_flowmc_config())
+        Jim(likelihood=lh, prior=prior, sampler_config=_tiny_flowmc_config())
 
     def test_sample_transform_overwrites_unconsumed_prior_parameter_raises(self):
         # Prior defines both M_c and M_c_unbounded; sample transform maps

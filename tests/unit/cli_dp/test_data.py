@@ -19,6 +19,7 @@ DURATION = 8.0
 SAMPLING_FREQUENCY = 1024.0
 TRIGGER_TIME = 1343651418.0
 SEG_START = TRIGGER_TIME - DURATION + 2.0
+LAMBDA_REF = 2.14e4
 
 BASE_PARAMETERS = {
     "M_c": 30.0,
@@ -33,7 +34,7 @@ BASE_PARAMETERS = {
     "psi": 0.3,
     "sigma_1": 0.2,
     "sigma_2": -0.2,
-    "eps_BD": 0.5,
+    "Lambda": 2.14e4,
 }
 
 WAVEFORM = RippleDarkPhotonWaveform(RippleIMRPhenomD(f_ref=F_MIN))
@@ -111,3 +112,41 @@ class TestResolveInjectionParameters:
             for qs in [qs1, qs2]
         )
         assert network_snr_sq**0.5 == pytest.approx(target_snr, rel=1e-6)
+
+    def test_lambda_ratio_is_rescaled_to_lambda(self):
+        qs = make_sensor()
+        params = {k: v for k, v in BASE_PARAMETERS.items() if k != "Lambda"}
+        injection = InjectionConfig(
+            injection_parameters={**params, "d_L": 123.0, "Lambda_ratio": 2.0},
+        )
+        resolved = _resolve_injection_parameters(
+            [qs], injection, WAVEFORM, F_MIN, F_MAX, TRIGGER_TIME, LAMBDA_REF
+        )
+        assert "Lambda_ratio" not in resolved
+        assert resolved["Lambda"] == pytest.approx(2.0 * LAMBDA_REF)
+
+    def test_lambda_ratio_is_rescaled_before_snr_calibration(self):
+        qs = make_sensor()
+        params = {k: v for k, v in BASE_PARAMETERS.items() if k != "Lambda"}
+        injection = InjectionConfig(
+            injection_parameters={**params, "Lambda_ratio": 1.0},
+            target_optimal_snr=25.0,
+        )
+        resolved = _resolve_injection_parameters(
+            [qs], injection, WAVEFORM, F_MIN, F_MAX, TRIGGER_TIME, LAMBDA_REF
+        )
+        assert resolved["Lambda"] == pytest.approx(LAMBDA_REF)
+        assert _trial_optimal_snr(
+            qs, WAVEFORM, resolved, F_MIN, F_MAX, TRIGGER_TIME
+        ) == pytest.approx(25.0, rel=1e-6)
+
+    def test_lambda_ratio_without_reference_is_rejected(self):
+        qs = make_sensor()
+        params = {k: v for k, v in BASE_PARAMETERS.items() if k != "Lambda"}
+        injection = InjectionConfig(
+            injection_parameters={**params, "d_L": 123.0, "Lambda_ratio": 1.0},
+        )
+        with pytest.raises(ValueError, match="no reference cutoff"):
+            _resolve_injection_parameters(
+                [qs], injection, WAVEFORM, F_MIN, F_MAX, TRIGGER_TIME
+            )

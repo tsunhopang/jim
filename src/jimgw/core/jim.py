@@ -12,7 +12,6 @@ from ripplegw.interfaces import Waveform
 from jimgw.core.base import LikelihoodBase
 from jimgw.core.prior import Prior
 from jimgw.core.transforms import BijectiveTransform, NtoMTransform
-from jimgw.core.single_event.detector import QuantumSensor
 from jimgw.core.single_event.likelihood import SingleEventLikelihood
 from jimgw.samplers import Sampler, SamplerConfig, build_sampler
 from jimgw.samplers.config import FlowMCConfig
@@ -218,12 +217,6 @@ class Jim:
 
         consumed: set[str] = set(wf_param_names)
         consumed |= {"ra", "dec", "psi", "t_c"}
-        # eps_BD is consumed by QuantumSensor.fd_response only, so requiring it of every
-        # single-event likelihood would break ordinary interferometer runs.
-        if any(
-            isinstance(d, QuantumSensor) for d in getattr(likelihood, "detectors", ())
-        ):
-            consumed |= {"eps_BD"}
         if getattr(likelihood, "time_marginalization", False):
             consumed.discard("t_c")
         if getattr(likelihood, "phase_marginalization", False):
