@@ -12,6 +12,8 @@ from jimgw.typing import FloatLike, FloatScalar
 import requests
 from beartype import beartype as typechecker
 
+from ripplegw.constants import GAMMA_XE
+
 from jimgw.core.constants import (
     C_SI,
     EARTH_SEMI_MAJOR_AXIS,
@@ -1203,17 +1205,24 @@ class QuantumSensor(Detector):
 
         # Lorentzian transfer function centred at freq_Xe with linewidth tau_Xe^{-1},
         # from the simplified S_DM(f) of transfer_function.tex in its eta >> 1 limit.
-        # kappa_Xe and kappa_Rb are that note's transfer coefficients between the
-        # dark field and the pseudomagnetic field felt by 129Xe and 87Rb; they enter
-        # only through their ratio because the data has the response from Xe at
-        # resonance calibrated to 1.
-        kappa_Xe = 5.76e-4
-        kappa_Rb = 2.42e-7
+        # The Rb leakage term of that note's eq. (44) carries kappa_Rb / (kappa_Xe
+        # eta), the ratio of the effective fields felt by 87Rb and 129Xe divided by
+        # the spin-amplifier gain. B_eff enters only through that ratio because the
+        # data has the Xe response at resonance calibrated to 1.
+        #
+        # Note_pulsar_search_update.tex gives the ratio as gamma_Xe / (4 gamma_Rb)
+        # in both sectors: eqs. (17)/(18) for the vector field, where the Schmidt
+        # model sets sigma_n = 1 for Xe and sigma_p = 1/3 for Rb so the spin
+        # prefactors are 2 and 3/2 * 1/3 = 1/2, and eqs. (28)/(29) for the scalar,
+        # where the same 1/4 appears directly. The kappa values quoted in
+        # transfer_function.tex give 4.201e-6 for this, 0.24% lower, which is their
+        # three-significant-figure rounding.
+        gamma_Rb = 148.0  # GeV^-1, Note_pulsar_search_update.tex eq. (18)
         eta_Rb = 100.0
         lorentzian_Xe = 1.0 / (
             2j * jnp.pi * (frequency - self.freq_Xe) * self.tau_Xe + 1.0
         )
-        scale_Rb = kappa_Rb / kappa_Xe / eta_Rb
+        scale_Rb = GAMMA_XE / (4.0 * gamma_Rb * eta_Rb)
         projected_signal = lorentzian_Xe * (B_y - 1j * B_x) + 1j * scale_Rb * B_y
 
         # Time shift — identical to GroundBased2G.

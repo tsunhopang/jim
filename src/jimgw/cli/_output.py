@@ -56,7 +56,7 @@ def write_outputs(jim, cfg) -> None:
             "definition": "Lambda / Lambda_ref",
             "operator": operator,
             "lambda_ref_GeV": lambda_ref,
-            "source": "Note_pulsar_search.md Table 1, C_p = C_n = 1",
+            "source": "Note_pulsar_search_update.tex Table 1, C_p = C_n = 1",
         }
     diag_data.update({k: float(v) for k, v in scalar_diag.items()})
     with open(diag_json, "w") as f:

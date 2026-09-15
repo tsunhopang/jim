@@ -11,6 +11,8 @@ from jimgw.core.constants import (
     EARTH_SEMI_MAJOR_AXIS,
     EARTH_SEMI_MINOR_AXIS,
 )
+from ripplegw.constants import GAMMA_XE
+
 from jimgw.core.single_event.polarization import rotated_wave_basis
 from jimgw.core.single_event.time_utils import (
     greenwich_mean_sidereal_time as compute_gmst,
@@ -278,9 +280,10 @@ class TestQuantumSensor:
             params["ra"], params["dec"], params["gmst"]
         )
         time_shift += params["trigger_time"] - self.qs.start_time + params["t_c"]
-        # The Rb leakage term of transfer_function.tex eq. (44), scaled by
-        # kappa_Rb / (kappa_Xe * eta).
-        scale_Rb = 2.42e-7 / 5.76e-4 / 100.0
+        # The Rb leakage term of transfer_function.tex eq. (44). Its coefficient is
+        # the Rb-to-Xe effective-field ratio gamma_Xe / (4 gamma_Rb) of
+        # Note_pulsar_search_update.tex eqs. (17)/(18), over the amplifier gain.
+        scale_Rb = GAMMA_XE / (4.0 * 148.0 * 100.0)
         expected = (lorentzian * (B_y - 1j * B_x) + 1j * scale_Rb * B_y) * jnp.exp(
             -2j * jnp.pi * frequency * time_shift
         )
