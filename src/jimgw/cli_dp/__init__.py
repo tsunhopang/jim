@@ -59,8 +59,9 @@ sigma_1 = { type = "uniform",   min = -0.5,  max = 0.5   }
 sigma_2 = { type = "uniform",   min = -0.5,  max = 0.5   }
 # Operator cutoff as a ratio to the solar Fe-57 bound at C_p = C_n = 1
 # (Note_pulsar_search_update.tex Table 1): Lambda_ratio = Lambda / Lambda_ref, with
-# Lambda_ref = 2.14e4 GeV for DarkPhotonWaveform, 1.160 GeV for ScalarWaveform
-# with scalar_power = 2, and 1.003e-2 GeV for scalar_power = 3. The same prior
+# Lambda_ref = 2.14e4 GeV for DarkPhotonWaveform, and for ScalarWaveform 1.3e6 GeV
+# with scalar_power = 1, 1.160 GeV with scalar_power = 2, and 1.003e-2 GeV with
+# scalar_power = 3. The same prior
 # therefore works for every operator. Log-uniform (power_law with alpha = -1) is
 # scale-invariant in the coupling; min = 1 searches only Lambda > Lambda_ref, the
 # region that would improve on the existing bound.

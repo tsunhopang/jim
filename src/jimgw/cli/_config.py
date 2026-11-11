@@ -160,6 +160,7 @@ LAMBDA_REFERENCE: dict[tuple[str, Optional[int]], tuple[str, float]] = {
         "v_h/(2 Lambda^2) Nbar sigma_munu N F'^munu",
         2.14e4,
     ),
+    ("ScalarWaveform", 1): ("d_mu(phi)/Lambda Nbar gamma^mu gamma_5 N", 1.3e6),
     ("ScalarWaveform", 2): ("d_mu(phi^2)/Lambda^2 Nbar gamma^mu gamma_5 N", 1.160),
     ("ScalarWaveform", 3): ("d_mu(phi^3)/Lambda^3 Nbar gamma^mu gamma_5 N", 1.003e-2),
 }
@@ -187,8 +188,8 @@ class WaveformConfig(BaseModel):
                 f"{WRAPPER_APPROXIMANTS}"
             )
         if self.approximant == "ScalarWaveform":
-            if self.scalar_power not in (2, 3):
-                raise ValueError("ScalarWaveform requires scalar_power to be 2 or 3")
+            if self.scalar_power not in (1, 2, 3):
+                raise ValueError("ScalarWaveform requires scalar_power to be 1, 2 or 3")
         elif self.scalar_power is not None:
             raise ValueError(
                 "scalar_power is only valid when approximant is ScalarWaveform"

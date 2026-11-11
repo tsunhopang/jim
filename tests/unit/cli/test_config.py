@@ -392,6 +392,14 @@ def test_ns_aw_non_uniform_t_det_rejected():
             {
                 "approximant": "ScalarWaveform",
                 "base_approximant": "IMRPhenomD",
+                "scalar_power": 1,
+            },
+            1.3e6,
+        ),
+        (
+            {
+                "approximant": "ScalarWaveform",
+                "base_approximant": "IMRPhenomD",
                 "scalar_power": 2,
             },
             1.160,
